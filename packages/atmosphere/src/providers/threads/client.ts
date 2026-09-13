@@ -62,9 +62,29 @@ export type ThreadsSession = {
  * One navigation to the Threads homepage: collect cookies (`csrftoken`, `mid`, …) and parse `LSD`
  * from `data-sjs` HTML (same pattern as Instagram web).
  */
+/* logged-out session 的行程內快取。
+ *
+ * 每個請求都重新建 session 等於先下載一次 Threads 首頁（270 KB 以上）才能開始查貼文，
+ * 那是單次請求裡最大的一段時間。session 只是 cookie + LSD token，同一個 isolate 裡
+ * 完全可以重用；Worker 的 isolate 會跨請求存活，所以這個快取實際上很有效。
+ *
+ * 存活時間刻意短（10 分鐘）：token 過期的代價是一次失敗的查詢，而呼叫端會
+ * invalidateThreadsSession() 之後重試，所以寧可多換幾次也不要用到過期的。 */
+const THREADS_SESSION_TTL_MS = 10 * 60 * 1000;
+let cachedThreadsSession: { session: ThreadsSession; expiresAt: number } | null = null;
+
+/** 查詢失敗（token 可能過期）時呼叫，下一次會重新建 session。 */
+export function invalidateThreadsSession(): void {
+  cachedThreadsSession = null;
+}
+
 export async function fetchThreadsSession(
   userAgent: string | undefined
 ): Promise<ThreadsSession | null> {
+  const now = Date.now();
+  if (cachedThreadsSession && cachedThreadsSession.expiresAt > now) {
+    return cachedThreadsSession.session;
+  }
   try {
     const res = await withTimeout(signal =>
       fetch(`${THREADS_ORIGIN}/`, {
@@ -99,7 +119,9 @@ export async function fetchThreadsSession(
       });
       return null;
     }
-    return { cookieHeader: cookie, lsd, csrf: csrfToken };
+    const session: ThreadsSession = { cookieHeader: cookie, lsd, csrf: csrfToken };
+    cachedThreadsSession = { session, expiresAt: Date.now() + THREADS_SESSION_TTL_MS };
+    return session;
   } catch (err) {
     console.error('[threads] fetchThreadsSession failed', {
       message: err instanceof Error ? err.message : String(err)
