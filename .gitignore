@@ -19,3 +19,10 @@ credentials.enc.json
 
 # CodeGraph 的本機索引資料庫（十幾 MB，每台機器自己重建）
 .codegraph/
+
+# wrangler dev 的本機 runtime secrets（含 CREDENTIAL_KEY），絕不可進版控
+.dev.vars
+.dev.vars.*
+
+# playwright MCP 的暫存快照與 log
+.playwright-mcp/

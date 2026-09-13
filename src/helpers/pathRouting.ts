@@ -26,6 +26,11 @@ const SOURCE_DOMAIN_REALMS: Record<string, string> = {
   'www.bsky.app': 'bluesky',
   'instagram.com': 'instagram',
   'www.instagram.com': 'instagram',
+  'threads.com': 'threads',
+  'www.threads.com': 'threads',
+  /* Meta 在 2026 年把 Threads 從 threads.net 換到 threads.com，舊連結仍在流通 */
+  'threads.net': 'threads',
+  'www.threads.net': 'threads',
   'tiktok.com': 'tiktok',
   'www.tiktok.com': 'tiktok',
   'vm.tiktok.com': 'tiktok'

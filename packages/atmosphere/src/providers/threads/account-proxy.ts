@@ -191,7 +191,8 @@ export async function threadsPrivateApiRequest(
       console.error('[threads] private API request failed', {
         path: resolvedPath,
         account: account.username,
-        status: res.status
+        status: res.status,
+        body: text.slice(0, 400)
       });
       last = { ok: false, status: res.status, json: null, accountUsed: account.username };
       if (ROTATE_STATUSES.has(res.status)) continue;

@@ -119,6 +119,8 @@ export const Constants = {
   BLUESKY_API_ROOT: 'https://public.api.bsky.app',
   TIKTOK_ROOT: 'https://www.tiktok.com',
   TIKTOK_API_HOST: 'https://api16-normal-c-useast1a.tiktokv.com',
+  /* Meta 在 2026 年把 Threads 從 threads.net 換到 threads.com；真人 302 導回原站時用新網域。 */
+  THREADS_ROOT: process.env.THREADS_ROOT || 'https://www.threads.com',
   INSTAGRAM_ROOT: process.env.INSTAGRAM_ROOT || 'https://www.instagram.com',
   INSTAGRAM_API_ROOT: process.env.INSTAGRAM_API_ROOT || 'https://i.instagram.com',
   NATIVE_MULTI_IMAGE_UA_REGEX: /discordbot\/|matrixpreviewbot/gi,

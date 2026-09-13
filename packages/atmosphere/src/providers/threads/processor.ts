@@ -41,6 +41,16 @@ function buildPhoto(url: string, w: number, h: number): APIPhoto {
   };
 }
 
+/** 貼文或 linked_inline_media 的最佳縮圖。影片沒有 display_url 時要退到 image_versions2，
+    否則 og:image 會是空的 —— 而 LINE 的連結預覽只讀 og:image。 */
+function bestThumbnail(o: Record<string, unknown>): string | undefined {
+  if (typeof o.display_url === 'string' && o.display_url) return o.display_url;
+  if (typeof o.display_src === 'string' && o.display_src) return o.display_src;
+  const cands = (o.image_versions2 as { candidates?: { url?: string }[] } | undefined)?.candidates;
+  const url = cands?.[0]?.url;
+  return typeof url === 'string' && url ? url : undefined;
+}
+
 function buildVideo(
   url: string,
   w: number,
@@ -188,6 +198,23 @@ export function textAndFacetsFromThreadsPost(post: Record<string, unknown>): {
   return { text: '', facets: [] };
 }
 
+/**
+ * Threads 把「分享進來的內容」（例如從 Instagram 分享的 reel）放在
+ * `text_post_app_info.linked_inline_media`，而不是貼文頂層 —— 那種貼文的
+ * `media_type` 是 19，`video_versions` 與 `carousel_media` 在頂層都是 null，
+ * 所以底下依 media_type / carousel 判斷的邏輯一個都不會命中，媒體就整個掉了。
+ *
+ * linked_inline_media 的內部結構跟一般貼文相同（video_versions / image_versions2 /
+ * original_width…），所以直接對它重跑同一套邏輯即可，不必為它另寫一份解析。
+ */
+function linkedInlineMediaOf(post: Record<string, unknown>): Record<string, unknown> | null {
+  const info = post.text_post_app_info as Record<string, unknown> | undefined;
+  const linked = info?.linked_inline_media;
+  return linked && typeof linked === 'object' && !Array.isArray(linked)
+    ? (linked as Record<string, unknown>)
+    : null;
+}
+
 function mediaContainerFromThreadsPost(post: Record<string, unknown>): {
   photos: APIPhoto[];
   videos: APIVideo[];
@@ -217,7 +244,7 @@ function mediaContainerFromThreadsPost(post: Record<string, unknown>): {
             pickInt(s.original_width, vu?.[0]?.width, w),
             pickInt(s.original_height, vu?.[0]?.height, h),
             durationSec,
-            typeof s.display_url === 'string' ? s.display_url : undefined
+            bestThumbnail(s)
           );
           videos.push(v);
           all.push(v);
@@ -247,7 +274,7 @@ function mediaContainerFromThreadsPost(post: Record<string, unknown>): {
         pickInt(vv?.[0]?.width, w),
         pickInt(vv?.[0]?.height, h),
         durationSec,
-        typeof post.display_url === 'string' ? post.display_url : undefined
+        bestThumbnail(post)
       );
       videos.push(v);
       all.push(v);
@@ -271,6 +298,16 @@ function mediaContainerFromThreadsPost(post: Record<string, unknown>): {
       all.push(p);
     }
   }
+
+  /* 頂層什麼都沒抓到時，才看 linked_inline_media —— 順序很重要：
+     貼文自己的媒體永遠優先於被分享進來的內容。 */
+  if (all.length === 0) {
+    const linked = linkedInlineMediaOf(post);
+    if (linked) {
+      return mediaContainerFromThreadsPost(linked);
+    }
+  }
+
   return { photos, videos, all };
 }
 
