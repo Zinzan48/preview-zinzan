@@ -848,7 +848,11 @@ const fetchSingleStatus = async (
   if (!hasElongator) {
     try {
       return await fetchByRestId(id, host, undefined, language);
-    } catch (_e) {
+    } catch (e) {
+      /* 沒有帳號代理時這是唯一的取得路徑。原本這裡直接吞掉例外，結果每一種
+         失敗都只會變成「貼文不存在」的嵌入頁，完全無從診斷 —— 自架時最需要
+         的就是這個訊息。 */
+      console.error('fetchByRestId threw, treating as not found:', e);
       return null;
     }
   }

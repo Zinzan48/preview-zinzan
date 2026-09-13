@@ -51,22 +51,24 @@ export const twitterFetch = async (
     ...env.baseHeaders
   };
 
+  /* 這是 POST，而 cf 的 cacheTtl / cacheEverything 依官方文件只適用於 GET / HEAD，
+     所以原本帶的那組 cache 選項本來就不會生效；新版 workers runtime 更會直接拋
+     TypeError（"cacheControl and cacheTtl are mutually exclusive"），讓整個
+     guest token 流程掛掉 —— 在沒有帳號憑證的自架環境，那是唯一的取得路徑，
+     結果每則貼文都變成「不存在」。token 本來就另外用 caches.default 手動快取
+     （見下方 guestTokenRequestCacheDummy），這裡不需要 cf。 */
   const guestTokenRequest = new Request(`${env.apiRoot}/1.1/guest/activate.json`, {
     method: 'POST',
     headers: tokenHeaders,
-    cf: {
-      cacheEverything: true,
-      cacheTtl: env.guestTokenMaxAge
-    },
     body: ''
   } as RequestInit);
 
+  /* 這個 Request 只當 caches.default 的 key 用，從來不會被 fetch，所以 cf 的
+     cache 選項沒有意義；留著反而會讓 cache.match/put 在新版 runtime 拋出
+     同一個 mutually-exclusive TypeError。實際的保存期限是由 put 進去的
+     Response 上的 cache-control: max-age=… 決定（見下方 cachingResponse）。 */
   const guestTokenRequestCacheDummy = new Request(`${env.apiRoot}/1.1/guest/activate.json`, {
-    method: 'GET',
-    cf: {
-      cacheEverything: true,
-      cacheTtl: env.guestTokenMaxAge
-    }
+    method: 'GET'
   } as RequestInit);
 
   const cache =
