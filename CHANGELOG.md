@@ -9,6 +9,38 @@
 
 ---
 
+## [2026-09-13] Threads 線上時好時壞的真正原因
+
+### Fixed
+
+**私有 API 的 404 會把「憑證失效」誤報成「貼文不存在」。**
+`i.instagram.com` 對未認證的 `/api/v1/…` 不回 401，而是 302 到**同源**的
+`/accounts/login/?next=…`；`fetchSameOriginHttps` 依設計會跟著同源 HTTPS 跳轉走，
+最後拿到的是登入頁的 HTML，而那頁的狀態碼正好是 **404**。
+`providers/threads/post.ts` 原本對 `proxied.status === 404` 直接 `return notFound()`，
+於是 session 一失效，每一則 Threads 貼文都變成「找不到貼文」——
+儘管同一則貼文的 logged-out 查詢完全正常。
+
+> 這個短路連上游自己的 doc comment 都對不上，那段明寫
+> 「*and whenever that call fails — it falls back to the logged-out Relay query*」。
+
+改法兩層：
+- `threads/account-proxy.ts` 認出登入頁，還原成 `401` 並輪替帳號，
+  不讓它偽裝成任何內容層的狀態碼。
+- `threads/post.ts` 移除 404 短路，私有 API 的失敗一律往下走 logged-out 路徑。
+  代價是真的被刪掉的貼文多一次上游往返才回 404。
+
+**非 2xx 回應的 body 被丟掉，失敗完全不可診斷。**
+`account-proxy.ts` 在 `!response.ok` 時回傳 `text: ''`，所以那行
+`body: text.slice(0, 400)` 的 log 永遠是空字串。改成照樣讀出來。
+
+> 線上 log（Workers observability，2026-09-13 13:15–13:40Z）：
+> 9 次 `text_feed/{id}/single_thread/` 請求 **9 次全部** 404，
+> 本機用同一組憑證直接打也是 302 → 登入頁。
+> 一度以為是「Meta 機率性封鎖 Cloudflare 對外 IP」，**不是**。
+
+---
+
 ## [2026-09-13] Threads 支援
 
 ### Added
