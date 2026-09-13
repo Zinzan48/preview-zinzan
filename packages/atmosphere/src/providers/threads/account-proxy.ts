@@ -88,6 +88,18 @@ export function threadsProxyHeaders(
 /** HTTP statuses where another account is worth trying: auth/checkpoint/rate limit. */
 const ROTATE_STATUSES = new Set([401, 403, 429]);
 
+/**
+ * `i.instagram.com` 不會對未認證的 `/api/v1/…` 回 401，而是 302 到**同源**的
+ * `/accounts/login/?next=…`；`fetchSameOriginHttps` 會跟著這一跳走，於是呼叫端拿到的是
+ * 登入頁的 HTML，狀態碼 404。照原樣往上傳會被讀成「這則貼文不存在」，把憑證問題偽裝成
+ * 內容問題。認出這一頁，才能還原成它真正的意思：這組 session 不能用，換下一組。
+ */
+function looksLikeLoginPage(body: string): boolean {
+  const trimmed = body.trimStart();
+  if (trimmed.startsWith('{') || trimmed.startsWith('[')) return false;
+  return trimmed.includes('not-logged-in') || trimmed.includes('/accounts/login/');
+}
+
 export type ThreadsPrivateApiResult = {
   ok: boolean;
   /** 0 when no account was available at all (proxy not configured). */
@@ -164,7 +176,9 @@ export async function threadsPrivateApiRequest(
           signal
         });
         if (!response.ok) {
-          return { response, text: '', parsed: null, parseFailed: false };
+          /* 非 2xx 也要把 body 讀出來：失敗的原因幾乎都寫在 body 裡（登入頁、
+             Meta 的錯誤 JSON），上游丟掉它等於讓失敗完全不可診斷。 */
+          return { response, text: await response.text(), parsed: null, parseFailed: false };
         }
         const body = await response.text();
         try {
@@ -184,6 +198,16 @@ export async function threadsPrivateApiRequest(
         message: err instanceof Error ? err.message : String(err)
       });
       last = { ok: false, status: 500, json: null, accountUsed: account.username };
+      continue;
+    }
+
+    if (looksLikeLoginPage(text)) {
+      console.error('[threads] private API redirected to login (session invalid)', {
+        path: resolvedPath,
+        account: account.username,
+        status: res.status
+      });
+      last = { ok: false, status: 401, json: null, accountUsed: account.username };
       continue;
     }
 

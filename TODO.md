@@ -24,6 +24,18 @@
   64 個 `video_versions`，而 curl 抓的靜態 HTML 是 0 —— 這個對比直接證明了
   「資料拿得到」，省下往逆向 token 流程鑽的時間。
 
+### Threads `/share/<code>` 短連結
+
+Threads 分享鈕產生的就是這個格式（例：`https://www.threads.com/share/BAWnHgstpr/`），
+也就是使用者實際會貼進 Telegram 的連結，但 `src/realms/threads/router.ts` 只認
+`/@handle/post/:id` 與 `/post/:id`，`/share/…` 會落到 catch-all 直接 302 回首頁。
+
+`share` code 與貼文 shortcode **不是同一個命名空間**（實測 `/post/BAWnHgstpr` 找不到）。
+要多一次上游往返：抓 `threads.com/share/<code>` 的頁面，解析出正規的
+`@handle/post/<shortcode>` 再走既有流程。
+
+---
+
 ### Facebook
 
 **上游完全沒有**，`packages/atmosphere/src/providers/` 底下沒有 facebook 目錄。
@@ -43,11 +55,13 @@
 - **憑證會過期**，更新流程見 skill [`social-account-credentials`](./.claude/skills/social-account-credentials/SKILL.md)。
   徵兆是安靜退化（NSFW 貼文突然看不到、IG 開始不穩），公開貼文仍正常，
   所以不會有明顯的故障訊號。
-- **Threads 在線上只有約 25% 的成功率**（本機 100%）。X 與 Instagram 都穩定，
-  所以不是機制問題。失敗是隨機的，不是連續失敗，推測是 Meta 對 Cloudflare 的
-  出口 IP 機率性地擋 —— 但那還只是推論，要靠線上 log 確認。
-  在確認並解決之前，**Threads 不能寫進 `TBDOMAINREWRITE`**：健康探測會時通時斷，
-  規則會在啟用與停用之間震盪。
+- **憑證失效的判定方式**（一分鐘、不用改程式）：帶著 `credentials.json` 的 cookie 打
+  `https://www.instagram.com/api/v1/web/accounts/edit/web_form_data/`。
+  回 JSON＝session 還活著；回 HTML 且含 `class="... not-logged-in"`＝已失效。
+  比看 `current_user`（失效與被風控都回同一句 `status: fail`）明確得多。
+- ~~**Threads 在線上只有約 25% 的成功率**~~ —— 已解決（2026-09-13）。
+  不是 Meta 擋 Cloudflare 出口 IP（那個推論是錯的），是憑證失效後
+  私有 API 的 404 被誤讀成「貼文不存在」，細節見 `CHANGELOG.md`。
 - **跟上游同步**：`git fetch upstream && git merge upstream/main` 之後，
   務必複查 `CHANGELOG.md` 列的六個上游缺陷修正還在不在。
   其中 guest token 的 `cf` 選項與 `constants.ts` 的 `filter(Boolean)`

@@ -93,9 +93,17 @@ export async function constructThreadsPost(
         return threadFromChain(chain, shortcode);
       }
     }
-    if (proxied.status === 404) {
-      return notFound();
-    }
+    /* 私有 API 的失敗一律往下走 logged-out 路徑，不在這裡提早回 404。
+
+       上游原本對 `proxied.status === 404` 直接 `return notFound()`，當成「Meta 說這則
+       貼文不存在」。但那個 404 不一定來自 API：session 失效時 i.instagram.com 會把
+       `/api/v1/...` 302 到同源的 `/accounts/login/`，而 fetchSameOriginHttps 會跟著走，
+       最後拿到的是登入頁的 HTML —— 狀態碼正好是 404。線上實測（2026-09-13，Workers
+       observability）9 次 text_feed 請求全部走到這條路，使用者看到的就是「找不到貼文」，
+       而同一則貼文 logged-out 查詢拿得到完整內容。
+
+       代價是真的被刪掉的貼文會多一次上游往返才回 404，換來的是憑證出問題時服務不會
+       整片假性失效。account-proxy 那側另外把登入頁還原成 401，這裡是第二道防線。 */
   }
 
   const session = await fetchThreadsSession(userAgent);
