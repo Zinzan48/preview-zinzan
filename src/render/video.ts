@@ -77,9 +77,42 @@ export const renderVideo = (
   // console.log('status', status);
   console.log('provider', status.provider);
 
+  /* Instagram 的 CDN 網址帶 13 個簽章參數，光是它本身就 1000 字元以上；包進
+     /2/go?url=… 之後 og:video 會超過 1150 字元，而 Telegram 對這樣的貼文只畫縮圖、
+     不產生播放器（實測：同一則 reel 在上游 67instagram.com 也一樣，但 X 的影片
+     ——網址約 130 字元、無簽章——正常播放）。其他可能原因都已排除：meta 格式、
+     302 中轉本身、影片編碼（H.264 + faststart）、檔案大小、網址時效、來源 IP 限制。
+
+     所以改成指向我們自己的 direct-media 路徑：meta 裡只放短路徑，客戶端真的來抓時
+     才即時解析並 302 到 CDN。代價是抓取時多一次上游往返（貼文資料有 Cache API 擋著）。
+
+     只在這支影片是貼文的第一個媒體時才這樣做 —— Instagram realm 沒有
+     /videos/<n> 這種指定第幾個媒體的路由，carousel 的第二支影片會被解析成第一支。 */
+  const instagramDirectMediaUrl = (() => {
+    if (status.provider !== DataProvider.Instagram) {
+      return null;
+    }
+    if (all && all.length > 0 && all[0] !== video) {
+      return null;
+    }
+    try {
+      const source = new URL(status.url);
+      const selfHost = new URL(properties.context.req.url).host;
+      const path = source.pathname.replace(/\/+$/, '');
+      if (!path) {
+        return null;
+      }
+      return `https://${selfHost}/${source.host}${path}.mp4`;
+    } catch (_e) {
+      return null;
+    }
+  })();
+
   // Apply video redirect workaround for Discord/Telegram, but NOT for TikTok
   // TikTok videos need their own proxy with specific cookies/headers
-  if (
+  if (instagramDirectMediaUrl) {
+    url = instagramDirectMediaUrl;
+  } else if (
     experimentCheck(Experiment.KITCHENSINK_VIDEO, userAgent?.includes('TelegramBot')) &&
     status.provider !== DataProvider.TikTok
   ) {
