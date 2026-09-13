@@ -9,6 +9,41 @@
 
 ---
 
+## [2026-09-14] Threads 影片在 Telegram 不播
+
+### Fixed
+
+**`og:video` 長 1154 字元，Telegram 只畫縮圖、不產生播放器。**
+
+這是 Instagram 那個坑的第二次發作：Meta 系的 CDN 網址帶 13 個簽章參數，光是本身就
+1000 字元以上，包進 `/2/go?url=…` 之後就爆掉。修法早就存在（`src/render/video.ts`
+的 direct-media 短網址），只是當初只套用在 Instagram 上，Threads 一接上就落回
+`/2/go` 那條路。
+
+Threads realm 的 direct-media 路徑**本來就已經可用**（`routes/post.ts` 會剝掉 `.mp4`
+副檔名並設 `flags.direct`），所以這次只需要讓 `renderVideo` 也對 Threads 產生短網址：
+**1154 → 73 字元**。
+
+實測對照：
+
+| 來源 | og:video 長度 | Telegram |
+| --- | --- | --- |
+| X | 約 130、無簽章 | 正常播放 |
+| Instagram reel | 1162 → 66 | 修正後正常 |
+| Threads 影片 | 1154 → 73 | 修正後正常 |
+
+### Changed
+
+**網址組裝抽成 `src/helpers/directMedia.ts` 並補上測試。**
+同一個問題踩過三次，而它的症狀是**安靜失敗** —— meta 全都在、頁面看起來正常，
+只是沒有播放器。所以連「網址長度」本身都要斷言，不能只驗格式。
+
+測試同時釘住兩個容易被改掉的前提：結尾斜線要剝掉（否則變成 `…/CODE/.mp4`），
+以及**只有第一個媒體才適用** —— 這兩個 realm 都沒有 `/videos/<n>` 路由，
+carousel 的第二支影片會被解析成第一支，放出去是「預覽顯示了別支影片」，比沒有播放器更糟。
+
+---
+
 ## [2026-09-13] Threads 改走「爬蟲 UA 讀頁面」
 
 ### Added
