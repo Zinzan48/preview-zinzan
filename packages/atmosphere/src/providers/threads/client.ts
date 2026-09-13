@@ -139,6 +139,12 @@ async function threadsGraphql(params: {
     const mergedCookies = mergeCookieHeader(params.session.cookieHeader, res.headers);
     params.session.cookieHeader = mergedCookies;
     if (!res.ok) {
+      const errBody = await res.text().catch(() => '');
+      console.error('[threads] graphql non-ok', {
+        friendlyName: params.friendlyName,
+        status: res.status,
+        body: errBody.slice(0, 300)
+      });
       return { ok: false, status: res.status, json: null };
     }
     return { ok: true, status: res.status, json: (await res.json()) as unknown };
