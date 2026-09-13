@@ -96,6 +96,16 @@ export const THREADS_ANDROID_USER_AGENT =
   `Barcelona ${THREADS_ANDROID_VERSION_NAME} Android (34/14; 420dpi; 1080x2340; ` +
   `samsung; SM-S911B; dm1q; qcom; en_US; ${THREADS_ANDROID_VERSION_CODE})`;
 
+/**
+ * 讀 threads.com 頁面時用的 UA。**必須是爬蟲身分** —— 帶瀏覽器 UA 拿到的是空殼頁
+ * （實測 270 KB、0 個 `thread_items`），內容全靠前端 JS 補，而 Worker 裡沒有 JS 可跑。
+ *
+ * 選 bingbot 而不是 Googlebot：兩者拿到的資料同樣完整，但 bingbot 帶的回覆少得多
+ * （21 vs 45 edges），線上實測 1.95s vs 2.6s。我們只需要焦點貼文，回覆是純粹的成本。
+ */
+export const THREADS_CRAWLER_USER_AGENT =
+  'Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)';
+
 /** Private API prefix shared with Instagram (`i.instagram.com/api/v1/…`). */
 export const THREADS_API_V1 = '/api/v1';
 
