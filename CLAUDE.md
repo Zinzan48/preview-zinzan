@@ -124,6 +124,12 @@ curl -sI -H "Host: preview.zinzan.info" -A "$HUMAN" http://localhost:8787/x.com/
 
 ---
 
+> 遇到「meta 看起來都對，但 Telegram 就是不播影片／預覽不更新」這類問題，
+> 用 skill [`link-preview-platform-behavior`](./.claude/skills/link-preview-platform-behavior/SKILL.md)
+> —— 裡面有各平台的能力邊界、Telegram 產生播放器的四個條件，
+> 以及一套照順序排除的診斷步驟（快取 → meta 比對 → 平台限縮 → 中轉 → 影片檔 →
+> 第三方可達性 → 網址長度）。
+
 ## 5. 交給 `ShortUrlApi` 的探測設定
 
 `ADMIN.TBDOMAINREWRITE` 的探測 UA 是 `ShortUrlBot/1.0`，它命中 `BOT_UA_REGEX` 的 `bot`
