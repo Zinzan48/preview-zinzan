@@ -3,6 +3,7 @@ import { trimTrailingSlash } from 'hono/trailing-slash';
 import { getBranding } from '../../helpers/branding';
 import { versionRoute } from '../common/version';
 import { threadsPostRequest } from './routes/post';
+import { threadsShareRequest } from './routes/share';
 
 export const threads = new Hono();
 threads.use(trimTrailingSlash());
@@ -17,6 +18,10 @@ threads.get('/post/:id', threadsPostRequest);
 /* 分享用的短連結 /t/<code>。code 就是貼文 shortcode，所以直接沿用同一個 handler；
    真人會被 302 回不含 handle 的固定連結，Threads 自己會補上正確的作者。 */
 threads.get('/t/:id', threadsPostRequest);
+
+/* 分享鈕產生的短連結 /share/<code>。code 與貼文 shortcode 不同命名空間，
+   要先問過上游才知道指向哪一則。 */
+threads.get('/share/:code', threadsShareRequest);
 
 threads.get('/version', c => versionRoute(c));
 

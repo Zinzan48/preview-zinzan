@@ -13,8 +13,20 @@ import { normalizeThreadsPostId } from '@fxembed/atmosphere/providers/threads/sh
  * 這一層只負責 UA 分流與組出原站網址 —— 跟 instagram realm 是同一個形狀。
  */
 export const threadsPostRequest = async (c: Context) => {
+  const { handle, id } = c.req.param();
+  return handleThreadsPost(c, handle, id);
+};
+
+/**
+ * 參數是用傳的而不是從 `c.req.param()` 讀 —— `/share/<code>` 那條路由會先把分享 code
+ * 解析成正規的 handle / shortcode，再共用這一段，不必為它複製一份 handler。
+ */
+export const handleThreadsPost = async (
+  c: Context,
+  rawHandle: string | undefined,
+  id: string | undefined
+) => {
   console.log('threads post request!!!');
-  const { handle: rawHandle, id } = c.req.param();
   /* 路由把 @ 一起收進 :handle，這裡剝掉 */
   const handle = (rawHandle ?? '').replace(/^@/, '') || undefined;
   /* 剝掉 direct-media 副檔名（/post/CODE.mp4），要在正規化之前做 */
