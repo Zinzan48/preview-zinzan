@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { fetchThreadsPageJson } from '@fxembed/atmosphere/providers/threads/page-scrape';
+import {
+  fetchThreadsPageJson,
+  resolveThreadsShareCode
+} from '@fxembed/atmosphere/providers/threads/page-scrape';
 
 /*
  * 這條路徑壞掉時會**安靜地**退回 GraphQL —— 沒有錯誤訊息，只會讓 Threads 的成功率
@@ -189,5 +192,73 @@ describe('fetchThreadsPageJson', () => {
 
     expect(res.ok).toBe(false);
     expect(res.status).toBe(404);
+  });
+});
+
+describe('resolveThreadsShareCode', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  /* Threads 的 og:url 把 @ 寫成 HTML entity，而且真實頁面用的是 `&#064;` 而非 `&#64;`。
+     直接找 '@' 會整條路悄悄失效，所以兩種寫法都要吃。 */
+  const headWith = (ogUrl: string) =>
+    `<!DOCTYPE html><html><head><meta property="og:title" content="x"/>` +
+    `<meta property="og:url" content="${ogUrl}"/></head><body>` +
+    'x'.repeat(5000) +
+    `</body></html>`;
+
+  it('reads the canonical handle and shortcode out of og:url', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        streamingResponse(
+          headWith('https://www.threads.com/&#064;150_one_fifty/post/DdNwfAwiZcO'),
+          64
+        )
+      )
+    );
+
+    await expect(resolveThreadsShareCode('BAWnHgstpr')).resolves.toEqual({
+      handle: '150_one_fifty',
+      shortcode: 'DdNwfAwiZcO'
+    });
+  });
+
+  it('accepts a plain @ as well as the entity form', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        streamingResponse(headWith('https://www.threads.com/@zuck/post/CuVYy5Fvrrd'), 64)
+      )
+    );
+
+    await expect(resolveThreadsShareCode('abcd')).resolves.toEqual({
+      handle: 'zuck',
+      shortcode: 'CuVYy5Fvrrd'
+    });
+  });
+
+  it('gives up at </head> rather than pulling the rest of the page', async () => {
+    /* og:url 在文件 0.2% 處。沒有它就不會有了 —— 繼續讀只是白花將近 800 KB。 */
+    const bodyOnly =
+      `<!DOCTYPE html><html><head><meta property="og:title" content="x"/></head><body>` +
+      `<meta property="og:url" content="https://www.threads.com/@late/post/TooLate"/>` +
+      `</body></html>`;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => streamingResponse(bodyOnly, 64))
+    );
+
+    await expect(resolveThreadsShareCode('abcd')).resolves.toBeNull();
+  });
+
+  it('returns null on a non-2xx share page', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => streamingResponse('<html></html>', 64, 404))
+    );
+
+    await expect(resolveThreadsShareCode('abcd')).resolves.toBeNull();
   });
 });

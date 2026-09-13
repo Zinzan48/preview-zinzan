@@ -28,6 +28,10 @@ const OVERLAP = DATA_MARKER.length + SCRIPT_CLOSE.length;
 const PAGE_TIMEOUT_MS = 5000;
 const PAGE_RETRIES = 0;
 
+/* 解析分享短連結只需要讀到 <head> 裡的 og:url（文件 0.2% 處，實測約 0.4 秒），
+   所以預算比整頁取數小得多。它之後還要再跑一次完整取數，不能佔掉太多。 */
+const SHARE_TIMEOUT_MS = 2500;
+
 /**
  * 串流讀取，一拿到目標區塊就 `cancel()` 掉剩下的 body。
  *
@@ -108,6 +112,75 @@ function findEdgesHolder(node: unknown, depth = 0): unknown | null {
     if (hit) return hit;
   }
   return null;
+}
+
+/** `og:url` 裡的正規網址，例如 `https://www.threads.com/&#064;handle/post/CODE`。 */
+const OG_URL_PATTERN =
+  /property="og:url"\s+content="[^"]*?(?:@|&#0?64;)([A-Za-z0-9._]+)\/post\/([A-Za-z0-9_-]+)"/;
+
+/** 讀到 `<head>` 結束就夠 —— 再往下都是與這件事無關的內容。 */
+const HEAD_END = '</head>';
+
+export type ThreadsShareTarget = { handle: string; shortcode: string };
+
+/**
+ * 把 Threads 分享短連結（`/share/<code>`）解析成正規的 handle + shortcode。
+ *
+ * share code 與貼文 shortcode **不是同一個命名空間**（實測 `/post/BAWnHgstpr` 找不到），
+ * 所以一定要問過上游。但成本很低：`og:url` 落在文件 **0.2%** 處，串流讀到它就中止，
+ * 實測約 0.4 秒 —— 不需要為了它把整頁近 800 KB 拉下來。
+ */
+export async function resolveThreadsShareCode(code: string): Promise<ThreadsShareTarget | null> {
+  const url = `${THREADS_ORIGIN}/share/${encodeURIComponent(code)}`;
+  try {
+    return await withTimeout(
+      async signal => {
+        const res = await fetchSameOriginHttps(url, {
+          headers: {
+            'User-Agent': THREADS_CRAWLER_USER_AGENT,
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9'
+          },
+          signal
+        });
+        if (!res.ok) {
+          console.error('[threads] share page non-ok', { code, status: res.status });
+          return null;
+        }
+        const reader = res.body?.getReader();
+        if (!reader) return null;
+
+        const decoder = new TextDecoder();
+        let buf = '';
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buf += decoder.decode(value, { stream: true });
+
+          const match = OG_URL_PATTERN.exec(buf);
+          if (match) {
+            await reader.cancel().catch(() => undefined);
+            return { handle: match[1], shortcode: match[2] };
+          }
+          /* `<head>` 收完還沒看到就不會有了，不要繼續拉剩下的 800 KB。 */
+          if (buf.includes(HEAD_END)) {
+            await reader.cancel().catch(() => undefined);
+            break;
+          }
+        }
+        console.error('[threads] share page had no canonical og:url', { code });
+        return null;
+      },
+      SHARE_TIMEOUT_MS,
+      PAGE_RETRIES
+    );
+  } catch (err) {
+    console.error('[threads] share resolve failed', {
+      code,
+      message: err instanceof Error ? err.message : String(err)
+    });
+    return null;
+  }
 }
 
 export type ThreadsPageResult = {

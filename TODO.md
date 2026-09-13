@@ -24,20 +24,6 @@
   64 個 `video_versions`，而 curl 抓的靜態 HTML 是 0 —— 這個對比直接證明了
   「資料拿得到」，省下往逆向 token 流程鑽的時間。
 
-### Threads `/share/<code>` 短連結
-
-Threads 分享鈕產生的就是這個格式（例：`https://www.threads.com/share/BAWnHgstpr/`），
-也就是使用者實際會貼進 Telegram 的連結，但 `src/realms/threads/router.ts` 只認
-`/@handle/post/:id` 與 `/post/:id`，`/share/…` 會落到 catch-all 直接 302 回首頁。
-
-`share` code 與貼文 shortcode **不是同一個命名空間**（實測 `/post/BAWnHgstpr` 找不到），
-但這條路比原本估的便宜得多：`threads.com/share/<code>` 的頁面**帶著與貼文頁完全一樣的
-內嵌資料區塊**，解析出來直接就是正規貼文（實測 `BAWnHgstpr` → `DdNwfAwiZcO` /
-`150_one_fifty`）。所以**不需要**先解析成正規網址再抓第二次 ——
-`fetchThreadsPageJson('/share/<code>')` 就夠了，剩下的只是路由與測試。
-
----
-
 ### Facebook
 
 **上游完全沒有**，`packages/atmosphere/src/providers/` 底下沒有 facebook 目錄。
