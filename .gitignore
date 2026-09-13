@@ -9,3 +9,10 @@ credentials.json
 credentials.complete.json
 credentials.enc.json
 .credential-key
+
+# --- preview.zinzan.info fork ---
+# 這兩個檔在上游是「每個自架者自己填」所以被忽略；在我們這個 fork 裡它們是
+# 部署設定的一部分，必須進版控 Cloudflare Workers Builds 才拿得到。
+# （用否定規則而非刪掉上面的行，是為了讓 upstream 改 .gitignore 時不衝突。）
+!wrangler.toml
+!branding.json

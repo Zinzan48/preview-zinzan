@@ -1,0 +1,17 @@
+{
+  "zones": [
+    {
+      "name": "zinzan preview",
+      "default": true,
+      "domains": ["zinzan.info"],
+      "provider": "twitter",
+      "favicon": "https://www.zinzan.info/favicon.ico",
+      "redirect": "https://www.zinzan.info",
+      "color": "#6363ff",
+      "activityIcons": {
+        "default": "https://www.zinzan.info/favicon.svg",
+        "svg": "https://www.zinzan.info/favicon.svg"
+      }
+    }
+  ]
+}

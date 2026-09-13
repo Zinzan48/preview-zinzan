@@ -1,0 +1,17 @@
+# preview.zinzan.info — FxEmbed fork
+#
+# 與上游 wrangler.example.toml 的差異：
+#   1. 移除 analytics_engine_datasets（自架不用 Cloudflare Analytics Engine）
+#   2. 不寫 account_id（Workers Builds 以 API token 決定帳號，避免寫進 public repo）
+#   3. 加上 Custom Domain
+name = "preview-zinzan"
+main = "./dist/worker.js"
+compatibility_date = "2026-04-11"
+send_metrics = false
+
+[[routes]]
+pattern = "preview.zinzan.info"
+custom_domain = true
+
+[build]
+command = "npm run build"
