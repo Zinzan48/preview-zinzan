@@ -32,9 +32,15 @@ description: 診斷「Open Graph meta 看起來都對，但聊天軟體就是不
    format 時最容易發生）會被當成未知格式而不播。
 2. **影片要是 H.264 的 MP4，且 faststart**（`moov` 在 `mdat` 之前）。
    檢查方式見下方診斷步驟。
-3. **`og:video` 的網址不能太長。** 實測：約 130 字元的 `video.twimg.com` 網址正常播放；
-   約 1162 字元的 Instagram CDN 簽章網址**只顯示縮圖**——同一則貼文在上游
-   `67instagram.com` 也一樣，所以不是單一實作的問題。
+3. **`og:video` 的網址不能太長。** 實測：
+
+   | 來源 | 長度 | 結果 |
+   | --- | --- | --- |
+   | X（`video.twimg.com`，無簽章） | 約 130 | 正常播放 |
+   | Instagram CDN 簽章網址 | 1162 | 只顯示縮圖 |
+   | Threads CDN 簽章網址 | 1154 | 只顯示縮圖 |
+
+   同一則 Instagram 貼文在上游 `67instagram.com` 也一樣，所以不是單一實作的問題。
    確切門檻未知，但這是排除其他所有因素後唯一剩下的變因。
 4. 影片本身要能被 Telegram 的伺服器抓到（見診斷步驟 6）。
 
@@ -42,6 +48,12 @@ description: 診斷「Open Graph meta 看起來都對，但聊天軟體就是不
 改成「meta 只放自己網域的短路徑，客戶端真的來抓時才即時解析並 302」。
 例如 `https://你的網域/instagram.com/reel/<code>.mp4`（66 字元）。
 代價是抓取時多一次上游往返，值得。
+
+> ⚠ **新增平台時務必回頭檢查這個修正有沒有涵蓋到。** 這類修正很容易被寫成
+> 「只對某個 provider 生效」（例如 `if (provider !== Instagram) return null`），
+> 於是接上新平台時自動繞過，而且**完全沒有訊號**——meta 全都在、頁面正常，
+> 只是沒有播放器。2026-09-14 的 Threads 就是這樣重演了一次 Instagram 的同一個 bug。
+> 判斷方式：搜尋程式碼裡有沒有寫死 provider 名稱的條件，那些就是不會自動套用的。
 
 ## 診斷步驟
 
