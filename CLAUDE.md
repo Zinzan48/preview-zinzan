@@ -89,6 +89,20 @@ Custom domain 不用手動加，`wrangler.toml` 已宣告 `[[routes]] custom_dom
 
 ---
 
+### 3.3 社群帳號憑證
+
+沒有憑證服務照常運作（程式內建公開 guest token），憑證換來的是 X 的 NSFW 貼文、
+更高的 rate limit、Instagram 明顯更穩的成功率。
+
+設定、更新與診斷的完整流程在 skill
+[`social-account-credentials`](./.claude/skills/social-account-credentials/SKILL.md)。
+這裡只留最容易出錯的那一點：
+
+**三個值分屬兩個不同的地方。** `ENCRYPTED_CREDENTIALS` 與 `CREDENTIALS_IV` 是
+**Build** secrets（密文要在 build 期編進 bundle）；`CREDENTIAL_KEY` 是 **Worker runtime**
+secret（執行時才用來解密）。**金鑰放進 Build secrets 等於白加密** —— 它會跟密文一起
+被 inline 進 bundle。放錯的症狀跟「完全沒設憑證」一模一樣，不會有任何錯誤訊息。
+
 ## 4. 驗收
 
 本機：`npx wrangler dev --local`，一律帶 `-H "Host: preview.zinzan.info"`
