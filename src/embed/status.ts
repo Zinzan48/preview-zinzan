@@ -66,6 +66,15 @@ const isArticleOnlyTweet = (status: APITwitterStatus): boolean => {
   return false;
 };
 
+/** 貼文來源平台在 og:site_name 顯示的名稱。 */
+const PROVIDER_SITE_NAMES: Record<DataProvider, string> = {
+  [DataProvider.Twitter]: 'X',
+  [DataProvider.Bluesky]: 'Bluesky',
+  [DataProvider.Instagram]: 'Instagram',
+  [DataProvider.TikTok]: 'TikTok',
+  [DataProvider.Mastodon]: 'Mastodon'
+};
+
 export const returnError = (c: Context, error: string): Response => {
   const branding = getBranding(c);
   console.log('branding', JSON.stringify(branding));
@@ -358,7 +367,13 @@ export const handleStatus = async (
 
   let authorText = getSocialProof(status as APIStatus) || Strings.DEFAULT_AUTHOR_TEXT;
   const engagementText = authorText.replace(/ {4}/g, ' ');
-  const originalSiteName = getBranding(c).name;
+  /* og:site_name 顯示貼文的來源平台，而不是這個代理服務自己的名字。
+     LINE 會把它畫在預覽卡片的第一行，秀服務名稱對讀的人沒有意義；
+     Telegram / Discord 則仍然看得到來源。取不到 provider 時才退回 branding 名稱。
+     注意失敗頁（returnError）刻意維持用 branding 名稱當 og:title ——
+     ShortUrlApi 的健康探測就是靠「og:title 不等於作者名」判斷服務壞掉。 */
+  const originalSiteName =
+    PROVIDER_SITE_NAMES[status.provider as DataProvider] ?? getBranding(c).name;
   let siteName = originalSiteName;
 
   if ((status as APITwitterStatus).article && isTelegram && useIV) {
