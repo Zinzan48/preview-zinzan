@@ -59,9 +59,16 @@ Threads 分享鈕產生的就是這個格式（例：`https://www.threads.com/sh
   `https://www.instagram.com/api/v1/web/accounts/edit/web_form_data/`。
   回 JSON＝session 還活著；回 HTML 且含 `class="... not-logged-in"`＝已失效。
   比看 `current_user`（失效與被風控都回同一句 `status: fail`）明確得多。
-- ~~**Threads 在線上只有約 25% 的成功率**~~ —— 已解決（2026-09-13）。
-  不是 Meta 擋 Cloudflare 出口 IP（那個推論是錯的），是憑證失效後
-  私有 API 的 404 被誤讀成「貼文不存在」，細節見 `CHANGELOG.md`。
+- **Threads 線上目前 0%，兩條路同時斷**（2026-09-13 實測 9/9 失敗）。
+  診斷已經到位（`CHANGELOG.md` 有完整 log），剩下的是一個**營運動作**：
+
+  1. 私有 API：IG session 已失效 → **重新擷取憑證**（skill `social-account-credentials`）。
+  2. logged-out GraphQL：Meta 對 Cloudflare 出口 IP 限流，回 401
+     `Please wait a few minutes before you try again`＋`require_login: true`。
+     這條**沒有辦法從我們這側解決**，本機走家用 IP 不會碰到。
+
+  也就是說 Threads 的可用性完全押在憑證上。憑證補好後重跑一次 9 次驗收再決定。
+  **在那之前 Threads 不能寫進 `TBDOMAINREWRITE`**：探測會一直紅，或時通時斷讓規則震盪。
 - **跟上游同步**：`git fetch upstream && git merge upstream/main` 之後，
   務必複查 `CHANGELOG.md` 列的六個上游缺陷修正還在不在。
   其中 guest token 的 `cf` 選項與 `constants.ts` 的 `filter(Boolean)`

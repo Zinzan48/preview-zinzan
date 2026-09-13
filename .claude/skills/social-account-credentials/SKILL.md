@@ -104,8 +104,44 @@ Set-Clipboard -Value ((Get-Content .credential-key -Raw).Trim())                
 cookie 會過期（X 的 `auth_token` 撐得久，IG 的 `sessionid` 大約幾個月）。
 
 **徵兆是安靜退化，不是故障**：NSFW 貼文突然又看不到、IG 開始不穩定，
-但一般公開貼文完全正常——因為那條路徑本來就不需要憑證。所以不會有告警，
-只能靠上述的行為驗證發現。
+但一般公開貼文完全正常——因為那條路徑本來就不需要憑證。所以不會有告警。
+
+### 一分鐘判定 IG session 死活
+
+不用改程式、不用部署。帶著 `credentials.json` 裡的 cookie 打一個**只有登入才看得到**
+的端點：
+
+```bash
+COOKIE="sessionid=…; ds_user_id=…; csrftoken=…; mid=…; ig_did=…"
+curl -s -o /dev/null -w "%{http_code}
+"   "https://www.instagram.com/api/v1/web/accounts/edit/web_form_data/"   -H "X-IG-App-ID: 936619743392459" -H "X-CSRFToken: <csrftoken>" -H "Cookie: $COOKIE"
+```
+
+- **200 + JSON** → session 還活著。
+- **404 + HTML**（body 含 `class="no-js not-logged-in "`）→ **已失效**，要重新擷取 cookie。
+
+**不要用 `accounts/current_user/` 判斷**：session 失效與帳號被風控都回同一句
+`{"message":"We're sorry, but something went wrong.","status":"fail"}`，分不出來。
+
+### 為什麼失效會長得像「內容不存在」
+
+`i.instagram.com` 對未認證的 `/api/v1/…` **不回 401**，而是 302 到**同源**的
+`/accounts/login/?next=…`。provider 的 `fetchSameOriginHttps` 依設計會跟著同源 HTTPS
+跳轉走，最後拿到登入頁的 HTML —— 而那一頁的狀態碼正好是 **404**。
+
+所以看到 log 裡的 `status: 404`，**先確認憑證，再懷疑貼文**。
+
+### Threads：憑證不是加分項，是唯一可行的路
+
+其他平台沒有憑證仍可走公開路徑，Threads **不行**。Meta 對 Cloudflare 出口 IP 的
+logged-out GraphQL 會限流，回 **401**：
+
+```json
+{"message":"Please wait a few minutes before you try again.","require_login":true,"status":"fail"}
+```
+
+本機走家用 IP 不會碰到，所以**本機測試永遠看不出這個問題**——要靠線上 log
+（`[threads] graphql non-ok`）。憑證一過期，Threads 就是 0%，不是降級。
 
 輪替流程跟首次設定一樣，但 **`CREDENTIAL_KEY` 不用動**：`.credential-key`
 已存在時 `encrypt` 會沿用同一把金鑰，只有密文和 iv 會變。
