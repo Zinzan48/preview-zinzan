@@ -355,6 +355,10 @@ function buildVideo(
   return {
     type: 'video',
     url,
+    /* Instagram 的影片一律是 mp4（實測 scontent.cdninstagram.com 回
+       Content-Type: video/mp4）。不填的話 og:video:type 會變成字串 "undefined"，
+       Telegram / Discord 就不會產生內嵌播放器。 */
+    format: 'video/mp4',
     width: w || 1,
     height: h || 1,
     duration: durationSec > 0 ? durationSec : 0,
