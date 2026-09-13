@@ -9,6 +9,46 @@
 
 ---
 
+## [2026-09-13] Threads 支援
+
+### Added
+
+**Threads embed realm**（`src/realms/threads/`）。上游的 Threads provider 本來就完整，
+但只註冊在 atmosphere 的 JSON API 下，沒有會吐 OG meta 的預覽路由。
+比照 `src/realms/instagram/` 建 realm，`DataProvider` 加 `Threads`，
+`pathRouting` 白名單加 `threads.com` / `www.threads.com` / `threads.net`（Meta 換過網域），
+新增 `THREADS_ROOT` 常數。
+
+路由寫成 `/:handle/post/:id` 由 handler 剝掉 `@` —— `/@:handle/post/:id` 實測匹配不到，
+會落到 catch-all 回 302。
+
+### Fixed
+
+**從 Instagram 分享進 Threads 的貼文抓不到媒體。**
+那種貼文的 `media_type` 是 **19**，頂層的 `video_versions` 與 `carousel_media` 都是 `null`，
+所以 `mediaContainerFromThreadsPost` 依 media_type / carousel 判斷的分支一個都不會命中。
+媒體實際掛在 `text_post_app_info.linked_inline_media`，其內部結構與一般貼文相同，
+所以頂層抓不到時對它重跑同一套邏輯即可。順序是貼文自己的媒體優先。
+
+> 追查過程值得記住：logged-out GraphQL **一直都回著完整媒體**
+> （155 KB、`video_versions` 23 筆、6 個 `.mp4`），問題自始至終是解析。
+> 中途曾誤判為「需要 Threads 帳號」與「端點過期」，兩者都不是。
+
+**影片縮圖缺失時 `og:image` 被寫成字串 `"null"`。**
+縮圖原本只看 `display_url`，而 `linked_inline_media` 沒有那個欄位。
+改成退到 `image_versions2`，並在 `src/render/video.ts` 補上防呆 ——
+thumbnail 缺失時不輸出 `og:image`。**LINE 的連結預覽只讀 `og:image`，寫錯等於整張圖消失。**
+
+**Instagram 憑證在預覽路徑上完全沒被使用。**
+`handleStatus` 呼叫 `constructInstagramPost` / `constructThreadsPost` 時沒有傳
+`credentialKey`，而那是帳號代理的唯一入口 —— `hasInstagramAccountProxy()` 在 ctx
+沒帶它時直接回 `false`，`resolveInstagramAccounts()` 就回空陣列。
+Twitter 沒這問題，它是靠 `twitterBuildHostFromContext(c)` 帶進去的。
+
+**`threadsGraphql` 失敗時印出回應 body。** 原本只印 status，查不出失敗原因。
+
+---
+
 ## [2026-09-13] 初版自架
 
 ### Added — 這個 fork 專屬（不打算回饋上游）

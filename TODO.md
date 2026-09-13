@@ -7,31 +7,22 @@
 
 ## 新增平台
 
-### Threads
+### ~~Threads~~ — 已完成（2026-09-13）
 
-**上游已經有完整的 provider，缺的只是預覽頁路由。**
+預覽與影片都可用，見 `CHANGELOG.md`。這裡只留下對 Facebook 有參考價值的部分：
 
-`packages/atmosphere/src/providers/threads/` 有 18 個檔案（`post.ts`、`profile.ts`、
-`conversation.ts`、`account-proxy.ts`、`private-api.ts`…），但它只註冊在 **atmosphere
-的 JSON API**（`src/providers/threads/atmosphere-handlers.ts`），**沒有 `src/realms/threads/`**
-—— 也就是沒有像 twitter / instagram 那樣會吐 OG meta 的 embed realm。
-
-要做的事：
-
-1. 比照 `src/realms/instagram/`（`router.ts` + `routes/post.ts`）建 `src/realms/threads/`
-2. `src/worker.ts` 掛 `app.route('/threads', threads)`
-3. `src/helpers/pathRouting.ts` 的白名單加 `threads.com`、`www.threads.com`
-   （以及舊網域 `threads.net`，Meta 2026 年前後改過網域）
-4. `branding.json` 不用動（`og:site_name` 已改成依 provider 顯示，
-   `PROVIDER_SITE_NAMES` 要補一筆 Threads）
-5. `TBDOMAINREWRITE` 新增一列（`SOURCEHOST='threads.com'`、`PLATFORM='THREADS'`、
-   `PATHMODE=1`），探測樣本比照現有規則挑一則穩定貼文
-
-**注意**：Threads 的帳號代理**重用 Instagram 的憑證池**
-（`resolveThreadsAccounts` 就是 `resolveInstagramAccounts`，只換 app 指紋），
-所以我們現有的 IG 憑證可以直接用。proxy-only 路由（搜尋、typeahead、trends、
-按讚/追蹤名單、Replies/Reposts/Media 分頁）沒憑證會回 `501`，但貼文與個人頁
-會退回 logged-out 路徑，不影響預覽。
+- **`media_type` 不只有 2 和 8。** 從 Instagram 分享進 Threads 的內容是 **19**，
+  它的 `video_versions` 與 `carousel_media` 在貼文頂層都是 `null`，
+  媒體實際掛在 `text_post_app_info.linked_inline_media`。
+  Meta 系的平台很可能都有類似的「分享進來的內容」包裝層，
+  加新平台時**不要假設媒體一定在頂層**。
+- **先確認「資料有沒有回來」再懷疑「取不到」。** 這次一開始誤判成需要帳號或端點過期，
+  實際上 logged-out 查詢一直都回著完整媒體（155 KB、23 筆 `video_versions`），
+  只是解析沒抓。在 GraphQL 回應處印出結構特徵（bytes / hasErrors / 關鍵欄位出現次數）
+  就能一分鐘分辨這兩者。
+- **用瀏覽器驗證「資料是否存在」。** playwright 渲染後的 DOM 有 198 個 `mp4`、
+  64 個 `video_versions`，而 curl 抓的靜態 HTML 是 0 —— 這個對比直接證明了
+  「資料拿得到」，省下往逆向 token 流程鑽的時間。
 
 ### Facebook
 
