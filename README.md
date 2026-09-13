@@ -1,3 +1,16 @@
+> ### 這是一個 fork
+>
+> 這份 repo 是 [FxEmbed/FxEmbed](https://github.com/FxEmbed/FxEmbed) 的 fork，部署在
+> **preview.zinzan.info**，作為短網址服務 ShortUrlApi 的連結預覽改寫目標。
+>
+> 與上游最主要的差異：網址形狀是「**路徑第一段＝來源網域**」而不是「一個平台一個網域」——
+> `https://preview.zinzan.info/x.com/jack/status/20`。另外修掉了幾個會讓無憑證自架完全
+> 不能運作的上游缺陷。
+>
+> 與上游的完整差異在 [CHANGELOG.md](./CHANGELOG.md)；設定值、已知陷阱與跟上游同步的
+> 注意事項在 [CLAUDE.md](./CLAUDE.md)。
+> 以下是上游原本的 README。
+
 # FxEmbed <img src="https://raw.githubusercontent.com/FxEmbed/FxEmbed/main/assets/logos/fxembed.svg" height="24">
 
 ## Home of FxTwitter, FixupX, and FxBluesky

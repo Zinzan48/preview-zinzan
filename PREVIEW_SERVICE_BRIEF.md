@@ -36,10 +36,10 @@
 
 已查證的邊界（重要，不要把力氣花在做不到的事上）：
 
-| 平台 | 內嵌播放影片 | 依據 |
-|---|---|---|
-| Telegram | ✅ 可以 | 讀 `og:video`，會產生內嵌播放器 |
-| Discord | ✅ 可以 | 同上 |
+| 平台     | 內嵌播放影片  | 依據                                                                                                      |
+| -------- | ------------- | --------------------------------------------------------------------------------------------------------- |
+| Telegram | ✅ 可以       | 讀 `og:video`，會產生內嵌播放器                                                                           |
+| Discord  | ✅ 可以       | 同上                                                                                                      |
 | **LINE** | ❌ **做不到** | LINE 的連結預覽**只讀 `og:title` / `og:image` / `og:description`**，不吃 `og:video`。最多是正確的縮圖卡片 |
 
 **所以**：`og:video` 還是要輸出（Telegram / Discord 靠它），但不要為了 LINE 去調 `og:video`——LINE 只會用到 `og:image`，請確保 `og:image` 一定有值（影片就放縮圖）。若 LINE 日後支援 `og:video`，本設計不需改動即可受益。
@@ -49,15 +49,17 @@
 ## 3. 必須輸出的 meta 標籤
 
 ```html
-<meta property="og:title"        content="作者 (@handle)">
-<meta property="og:description"  content="貼文內文">
-<meta property="og:image"        content="圖片或影片縮圖的直連 URL">   <!-- LINE 只吃到這裡 -->
-<meta property="og:video"        content="mp4 直連 URL">              <!-- Telegram/Discord 內嵌播放 -->
-<meta property="og:video:type"   content="video/mp4">
-<meta property="og:video:width"  content="...">
-<meta property="og:video:height" content="...">
-<meta property="og:url"          content="原始網址">
-<meta name="twitter:card"        content="player">
+<meta property="og:title" content="作者 (@handle)" />
+<meta property="og:description" content="貼文內文" />
+<meta property="og:image" content="圖片或影片縮圖的直連 URL" />
+<!-- LINE 只吃到這裡 -->
+<meta property="og:video" content="mp4 直連 URL" />
+<!-- Telegram/Discord 內嵌播放 -->
+<meta property="og:video:type" content="video/mp4" />
+<meta property="og:video:width" content="..." />
+<meta property="og:video:height" content="..." />
+<meta property="og:url" content="原始網址" />
+<meta name="twitter:card" content="player" />
 ```
 
 `og:video` 請指向**上游的 mp4 直連**（例如 `video.twimg.com/...`），**不要自己代理影片流量**——那會讓頻寬成本失控，而且沒有必要。
@@ -68,12 +70,12 @@
 
 授權與維護狀態皆於 2026-09-13 以 GitHub API 查證。
 
-| 平台 | 參考專案 | 語言 | 授權 | 狀態 |
-|---|---|---|---|---|
-| X / Twitter + Bluesky | [`FxEmbed/FxEmbed`](https://github.com/FxEmbed/FxEmbed) | TypeScript | MIT | **活躍**，5,026 stars，最後推送 2026-09-13。repo 內含 `Dockerfile`、`docker-compose.yml`、`wrangler.example.toml`、`docs/`。**首選參考** |
-| Instagram | [`Wikidepia/InstaFix`](https://github.com/Wikidepia/InstaFix) | Go | MIT | ⚠️ **已封存**（2025-08-04）。所有 fork 皆 0 star，最新為 `0xrushi/InstaFix`（2026-08-19）。等同接手孤兒碼 |
-| Reddit（未列入第一階段） | [`MinnDevelopment/fxreddit`](https://github.com/MinnDevelopment/fxreddit) | TypeScript | Apache-2.0 | 活躍，2026-01-12 |
-| TikTok（未列入第一階段） | [`okdargy/fxtiktok`](https://github.com/okdargy/fxtiktok) | TypeScript | 非標準授權 | 活躍，2026-09-06 |
+| 平台                     | 參考專案                                                                  | 語言       | 授權       | 狀態                                                                                                                                     |
+| ------------------------ | ------------------------------------------------------------------------- | ---------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| X / Twitter + Bluesky    | [`FxEmbed/FxEmbed`](https://github.com/FxEmbed/FxEmbed)                   | TypeScript | MIT        | **活躍**，5,026 stars，最後推送 2026-09-13。repo 內含 `Dockerfile`、`docker-compose.yml`、`wrangler.example.toml`、`docs/`。**首選參考** |
+| Instagram                | [`Wikidepia/InstaFix`](https://github.com/Wikidepia/InstaFix)             | Go         | MIT        | ⚠️ **已封存**（2025-08-04）。所有 fork 皆 0 star，最新為 `0xrushi/InstaFix`（2026-08-19）。等同接手孤兒碼                                |
+| Reddit（未列入第一階段） | [`MinnDevelopment/fxreddit`](https://github.com/MinnDevelopment/fxreddit) | TypeScript | Apache-2.0 | 活躍，2026-01-12                                                                                                                         |
+| TikTok（未列入第一階段） | [`okdargy/fxtiktok`](https://github.com/okdargy/fxtiktok)                 | TypeScript | 非標準授權 | 活躍，2026-09-06                                                                                                                         |
 
 > **注意**：這些專案是**拿來參考／抽取邏輯自架**，不是拿來當轉址目標。原因見第 6 節。
 
@@ -101,6 +103,30 @@ curl "https://api.fxtwitter.com/jack/status/20"
 2. 對探測請求（帶 `ShortUrlBot/1.0` 類 User-Agent）回 **`200`**，且 HTML 內**含 `og:title`**。
 3. **不要把探測請求 302 導去別的 host**——探測端把「跨 host 轉址」判定為失敗。
 
+> ### ⚠️ 實作後的修正（2026-09-13，實測）
+>
+> 上面第 1、2 點的建議值**照做會壞**，實測結果如下，請以這裡為準：
+>
+> **(a) Bluesky 樣本必須帶貼文。** `/bsky.app/profile/bsky.app` 這種只有 profile 的路徑，
+> FxEmbed 沒有對應路由，一律 `302` 跨 host 導去 `bsky.app` —— 正好命中第 3 點的失敗條件，
+> 該規則會永遠 `HEALTHSTATUS=0` 而且看不出原因。改用：
+> `https://preview.zinzan.info/bsky.app/profile/bsky.app/post/3l6oveex3ii2l`
+>
+> **(b) 一律用貼文，不要用 profile。** Twitter 的 profile 頁（`/x.com/jack`）雖然回 200，
+> 但**不含 `og:title`**（只有 `twitter:site`），同樣會被判定失敗。
+>
+> **(c) 期望字串不可以用 `og:title`。** 服務故障或貼文不存在時**仍然回 200 且含 `og:title`**，
+> 值是 branding 的服務名稱。用 `og:title` 當期望字串等於永遠綠燈。
+> 請改用「只有真的取到資料才會出現」的作者字串：
+>
+> | 來源網域      | `PROBEURL`                                                                 | 期望字串              |
+> | ------------- | -------------------------------------------------------------------------- | --------------------- |
+> | `x.com`       | `https://preview.zinzan.info/x.com/jack/status/20`                         | `jack (@jack)`        |
+> | `twitter.com` | `https://preview.zinzan.info/twitter.com/jack/status/20`                   | `jack (@jack)`        |
+> | `bsky.app`    | `https://preview.zinzan.info/bsky.app/profile/bsky.app/post/3l6oveex3ii2l` | `Bluesky (@bsky.app)` |
+>
+> Instagram 為 best-effort（Meta 持續封鎖），建議規則先不啟用（`STATUS=0`）。
+
 判定為失敗的條件（比一般死連結檢查嚴格，因為失敗代價是使用者拿到打不開或被劫持的網址）：
 
 - 非 2xx
@@ -120,21 +146,21 @@ curl "https://api.fxtwitter.com/jack/status/20"
 
 2026-09-13 逐一實測（`curl -I`，8 秒逾時）：
 
-| 網域 | 實測結果 |
-|---|---|
-| `ddinstagram.com` | ❌ DNS 已消失（`Could not resolve host`） |
-| `instagramez.com` | ⚠️ **307 轉址到廣告聯播網** `effectivegatecpm.com` |
-| `kkinstagram.com` | ⚠️ 對非瀏覽器 client 直接拒絕 TLS（`ACCESS_DENIED`）；另有資安分析報告指其為 typosquatting 惡意站 |
-| `vxinstagram.com` | ❌ 502 |
-| `vxtiktok.com` | 回 200，但上游已標記 deprecated |
-| `fixthreads.net` | ❌ DNS 已消失 |
-| `vxthreads.net` | ❌ 連線逾時 |
-| `fxtwitch.tv` / `txitch.tv` | ❌ 自 2024-11-10 起失效 |
-| `fxtwitter.com` / `fixupx.com` | ✅ 正常 |
-| `vxtwitter.com` / `fixvx.com` | ✅ 正常 |
-| `rxddit.com` / `vxreddit.com` | ✅ 正常 |
-| `tnktok.com` / `tiktxk.com` | ✅ 正常 |
-| `phixiv.net` / `bskx.app` / `fxbsky.app` | ✅ 正常 |
+| 網域                                     | 實測結果                                                                                          |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `ddinstagram.com`                        | ❌ DNS 已消失（`Could not resolve host`）                                                         |
+| `instagramez.com`                        | ⚠️ **307 轉址到廣告聯播網** `effectivegatecpm.com`                                                |
+| `kkinstagram.com`                        | ⚠️ 對非瀏覽器 client 直接拒絕 TLS（`ACCESS_DENIED`）；另有資安分析報告指其為 typosquatting 惡意站 |
+| `vxinstagram.com`                        | ❌ 502                                                                                            |
+| `vxtiktok.com`                           | 回 200，但上游已標記 deprecated                                                                   |
+| `fixthreads.net`                         | ❌ DNS 已消失                                                                                     |
+| `vxthreads.net`                          | ❌ 連線逾時                                                                                       |
+| `fxtwitch.tv` / `txitch.tv`              | ❌ 自 2024-11-10 起失效                                                                           |
+| `fxtwitter.com` / `fixupx.com`           | ✅ 正常                                                                                           |
+| `vxtwitter.com` / `fixvx.com`            | ✅ 正常                                                                                           |
+| `rxddit.com` / `vxreddit.com`            | ✅ 正常                                                                                           |
+| `tnktok.com` / `tiktxk.com`              | ✅ 正常                                                                                           |
+| `phixiv.net` / `bskx.app` / `fxbsky.app` | ✅ 正常                                                                                           |
 
 **關鍵教訓**：`instagramez.com` 現在回的是 **307 → 200**。任何「只檢查 HTTP 狀態碼」的健康檢查都會放行它，然後把使用者送進廣告站。所以健康檢查一定要驗回應內容與轉址目標 host。
 
@@ -144,10 +170,10 @@ curl "https://api.fxtwitter.com/jack/status/20"
 
 以 `https://fxtwitter.com/jack/status/20` 實測三種 User-Agent：
 
-| User-Agent | 回應 |
-|---|---|
-| `TelegramBot (like TwitterBot)` | `200` + OG meta（3,008 bytes） |
-| `facebookexternalhit/1.1;line-poker/1.0`（LINE 爬蟲） | `200` + OG meta（3,081 bytes） |
+| User-Agent                                               | 回應                                 |
+| -------------------------------------------------------- | ------------------------------------ |
+| `TelegramBot (like TwitterBot)`                          | `200` + OG meta（3,008 bytes）       |
+| `facebookexternalhit/1.1;line-poker/1.0`（LINE 爬蟲）    | `200` + OG meta（3,081 bytes）       |
 | `Mozilla/5.0 (iPhone...) Line/14.0.0`（LINE 真人瀏覽器） | `302 → https://x.com/jack/status/20` |
 
 **照這個行為做就對了**：爬蟲給 metadata、真人直接送回原站。
