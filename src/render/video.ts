@@ -96,17 +96,23 @@ export const renderVideo = (
     url = `https://${Constants.GO_REDIRECT_HOST}/2/go?url=${encodeURIComponent(url)}`;
   }
 
+  /* og:video:type 是 Telegram / Discord 用來決定要不要內嵌播放器的依據。
+     provider 沒填 format 時（例如 Instagram）原本會直接把字串 "undefined" 寫進 meta，
+     客戶端就當成未知格式而不播。社群平台的影片實際上都是 mp4（實測 Instagram 的
+     scontent.cdninstagram.com 回 Content-Type: video/mp4），所以退一步給 mp4。 */
+  const videoFormat = video.format || 'video/mp4';
+
   /* Push the raw video-related headers */
   instructions.addHeaders = [
     `<meta property="twitter:player:height" content="${video.height * sizeMultiplier}"/>`,
     `<meta property="twitter:player:width" content="${video.width * sizeMultiplier}"/>`,
     `<meta property="twitter:player:stream" content="${url}"/>`,
-    `<meta property="twitter:player:stream:content_type" content="${video.format}"/>`,
+    `<meta property="twitter:player:stream:content_type" content="${videoFormat}"/>`,
     `<meta property="og:video" content="${url}"/>`,
     `<meta property="og:video:secure_url" content="${url}"/>`,
     `<meta property="og:video:height" content="${video.height * sizeMultiplier}"/>`,
     `<meta property="og:video:width" content="${video.width * sizeMultiplier}"/>`,
-    `<meta property="og:video:type" content="${video.format}"/>`,
+    `<meta property="og:video:type" content="${videoFormat}"/>`,
     `<meta property="og:image" content="${video.thumbnail_url}"/>`,
     `<meta property="twitter:image" content="0"/>`
   ];
