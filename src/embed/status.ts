@@ -331,12 +331,12 @@ export const handleStatus = async (
         } else if (
           experimentCheck(
             Experiment.VIDEO_REDIRECT_WORKAROUND,
-            Constants.API_HOST_LIST.length > 0
+            Constants.GO_REDIRECT_HOST !== ''
           ) &&
           status.provider !== DataProvider.TikTok &&
           status.provider !== DataProvider.Instagram
         ) {
-          redirectUrl = `https://${Constants.API_HOST_LIST[0]}/2/go?url=${encodeURIComponent(redirectUrl)}`;
+          redirectUrl = `https://${Constants.GO_REDIRECT_HOST}/2/go?url=${encodeURIComponent(redirectUrl)}`;
         }
       }
       // Only append name if it's an image

@@ -16,6 +16,8 @@ declare namespace NodeJS {
     POLYGLOT_DOMAIN_LIST?: string;
     POLYGLOT_ACCESS_TOKEN?: string;
     API_HOST_LIST?: string;
+    /** og:video / Instant View 的 302 中轉 host。空字串＝停用中轉。 */
+    GO_REDIRECT_HOST?: string;
     BLUESKY_API_HOST_LIST?: string;
     ATMOSPHERE_API_HOST_LIST?: string;
     GIF_TRANSCODE_DOMAIN_LIST?: string;

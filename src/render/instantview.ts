@@ -222,7 +222,7 @@ const generateInlineAuthorHeader = (
 };
 
 const wrapForeignLinks = (url: string) => {
-  return wrapForeignLinksUtil(url, Constants.API_HOST_LIST[0]);
+  return wrapForeignLinksUtil(url, Constants.GO_REDIRECT_HOST);
 };
 
 const generateStatusFooter = (
@@ -354,7 +354,7 @@ const generateStatus = (
       maxLength: undefined, // No limit for Telegram
       fullRenderer: true, // Render inline media for Telegram
       mediaEntities: twitterStatus.article.media_entities,
-      apiHost: Constants.API_HOST_LIST[0], // For wrapping foreign links
+      apiHost: Constants.GO_REDIRECT_HOST, // For wrapping foreign links
       photoUrlTransform: url => proxyTwitterPostPhotoUrl(url, proxyPbs)
     });
 

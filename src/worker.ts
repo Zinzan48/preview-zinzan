@@ -7,6 +7,7 @@ import { rewriteFramesIntegration } from 'toucan-js';
 
 import { Strings } from './strings';
 import { Constants } from './constants';
+import { matchSourcePrefix, SELF_REDIRECT_PATHS } from './helpers/pathRouting';
 import {
   setBlueskyProviderEnv,
   setBlueskyProxyRuntime
@@ -123,8 +124,22 @@ export const app = new Hono<{
     }
     const baseHostName = url.hostname.split('.').slice(-2).join('.');
     let realm = 'twitter';
-    /* Override if in API_HOST_LIST. Note that we have to check full hostname for this. */
-    if (Constants.API_HOST_LIST.includes(url.hostname)) {
+    /* 我們只有一個網域，realm 由路徑第一段的來源網域決定，而不是 Host header。
+       未命中白名單時才回落到上游原本的 hostname 判定。細節見 helpers/pathRouting.ts。 */
+    const sourceMatch = matchSourcePrefix(url.pathname);
+    const pathname = sourceMatch?.path ?? url.pathname;
+
+    if (sourceMatch) {
+      realm = sourceMatch.realm;
+      console.log(`Source domain prefix -> ${realm} realm`);
+    } else if (SELF_REDIRECT_PATHS.includes(url.pathname)) {
+      /* og:video 與 Instant View 用的純 302 轉址器，只放行這兩條路徑，
+         不讓其餘 JSON API 路由在主網域上可達。 */
+      realm = 'api';
+      console.log('Self redirect endpoint -> API realm');
+    } else if (Constants.API_HOST_LIST.includes(url.hostname)) {
+      /* 上游語義：整個 hostname 切成 API realm。本專案的 API_HOST_LIST 留空，
+         所以這條走不到，保留是為了讓 fork 仍可用子網域跑 JSON API。 */
       realm = 'api';
       console.log('API realm');
     } else if (Constants.BLUESKY_API_HOST_LIST.includes(url.hostname)) {
@@ -160,11 +175,11 @@ export const app = new Hono<{
     /* Defaults to Twitter realm if unknown domain specified (such as the *.workers.dev hostname) */
 
     if (realm) {
-      console.log(`/${realm}${url.pathname}`);
-      return `/${realm}${url.pathname}`;
+      console.log(`/${realm}${pathname}`);
+      return `/${realm}${pathname}`;
     } else {
-      console.log(`${url.pathname}`);
-      return `${url.pathname}`;
+      console.log(`${pathname}`);
+      return `${pathname}`;
     }
   }
 });

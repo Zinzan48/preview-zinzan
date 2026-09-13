@@ -53,6 +53,12 @@ export const Constants = {
     .map((s: string) => s.trim())
     .filter(Boolean),
   POLYGLOT_ACCESS_TOKEN: process.env.POLYGLOT_ACCESS_TOKEN ?? '',
+  /* og:video 與 Telegram Instant View 外部連結的 302 中轉 host（/2/go、/2/hit）。
+     上游是直接取 API_HOST_LIST[0]，但那個變數同時決定 realm 與 flags.api：
+     主網域一旦放進 API_HOST_LIST，貼文請求就會改回 JSON 而不是 OG HTML
+     （src/realms/twitter/routes/status.ts）。所以中轉 host 獨立成一個變數，
+     API_HOST_LIST 維持留空。設成空字串即停用中轉，og:video 直接指向上游 mp4。 */
+  GO_REDIRECT_HOST: (process.env.GO_REDIRECT_HOST ?? '').trim(),
   API_HOST_LIST: (process.env.API_HOST_LIST ?? '')
     .split(',')
     .map((s: string) => s.trim())

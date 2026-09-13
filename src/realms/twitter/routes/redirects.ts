@@ -5,12 +5,16 @@ import { getBaseRedirectUrl, isHorizonEmbedParam } from '../router';
 import { Constants } from '../../../constants';
 import { getBranding } from '../../../helpers/branding';
 import { Experiment, experimentCheck } from '../../../experiments';
+import { stripSourcePrefix } from '../../../helpers/pathRouting';
 
 export const genericTwitterRedirect = async (c: Context) => {
   const url = new URL(c.req.url);
+  /* 請求路徑帶著來源網域前綴（/x.com/...），要剝掉才會是原站路徑。
+     getPath 只影響路由比對，不會改寫 c.req.url。 */
+  const path = stripSourcePrefix(url.pathname);
   if (isHorizonEmbedParam(url)) {
     c.header('cache-control', 'max-age=0');
-    return c.redirect(`${Constants.HORIZON_WEB_ROOT}${url.pathname}`, 302);
+    return c.redirect(`${Constants.HORIZON_WEB_ROOT}${path}`, 302);
   }
   const baseUrl = getBaseRedirectUrl(c);
   /* Do not cache if using a custom redirect */
@@ -22,18 +26,18 @@ export const genericTwitterRedirect = async (c: Context) => {
 
   if (baseUrl.startsWith('twitter:/')) {
     // can't resolve this url to valid deeplink
-    return c.redirect(`${Constants.TWITTER_ROOT}/${url.pathname}`, 302);
+    return c.redirect(`${Constants.TWITTER_ROOT}${path}`, 302);
   }
 
   if (experimentCheck(Experiment.USE_HORIZON_WEB, baseUrl === Constants.TWITTER_ROOT)) {
-    const app = await fetch(`https://app.fxtwitter.com${url.pathname}`);
+    const app = await fetch(`https://app.fxtwitter.com${path}`);
     const appBody = await app.text();
     if (appBody.includes('<!doctype html>')) {
       return c.html(appBody, 200);
     }
   }
 
-  return c.redirect(`${baseUrl}${url.pathname}`, 302);
+  return c.redirect(`${baseUrl}${path}`, 302);
 };
 
 export const setRedirectRequest = async (c: Context) => {

@@ -65,8 +65,8 @@ const convertArticleMediaToAttachment = (
       sizeMultiplier = 2;
     }
 
-    if (experimentCheck(Experiment.VIDEO_REDIRECT_WORKAROUND, Constants.API_HOST_LIST.length > 0)) {
-      const redirectedUrl = `https://${Constants.API_HOST_LIST[0]}/2/go?url=${encodeURIComponent(videoUrl)}`;
+    if (experimentCheck(Experiment.VIDEO_REDIRECT_WORKAROUND, Constants.GO_REDIRECT_HOST !== '')) {
+      const redirectedUrl = `https://${Constants.GO_REDIRECT_HOST}/2/go?url=${encodeURIComponent(videoUrl)}`;
       return {
         id: media.media_id,
         type: 'video',
@@ -623,12 +623,12 @@ export const handleActivity = async (
               if (
                 experimentCheck(
                   Experiment.VIDEO_REDIRECT_WORKAROUND,
-                  Constants.API_HOST_LIST.length > 0
+                  Constants.GO_REDIRECT_HOST !== ''
                 ) &&
                 thread.status?.provider !== DataProvider.TikTok &&
                 thread.status?.provider !== DataProvider.Instagram
               ) {
-                video.url = `https://${Constants.API_HOST_LIST[0]}/2/go?url=${encodeURIComponent(video.url)}`;
+                video.url = `https://${Constants.GO_REDIRECT_HOST}/2/go?url=${encodeURIComponent(video.url)}`;
               }
               return {
                 id: '114163769487684704',

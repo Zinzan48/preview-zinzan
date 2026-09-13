@@ -101,6 +101,10 @@ export const formatImageUrl = (url: string, name = 'orig') => {
  * This prevents IV generation failures due to external site issues.
  */
 export const wrapForeignLinks = (url: string, apiHost: string): string => {
+  /* 沒有設定中轉 host 時直接用原連結，否則會組出 https://undefined/2/hit?url=… */
+  if (!apiHost) {
+    return url;
+  }
   let unwrap = false;
   const whitelistedDomains = ['fxtwitter.com', 'fixupx.com', 'fxbsky.app'];
   try {
