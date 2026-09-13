@@ -7,7 +7,8 @@
 > `https://preview.zinzan.info/x.com/jack/status/20`。另外修掉了幾個會讓無憑證自架完全
 > 不能運作的上游缺陷。
 >
-> 改動範圍、設定值、已知陷阱與跟上游同步的注意事項，全部寫在 [CLAUDE.md](./CLAUDE.md)。
+> 與上游的完整差異在 [CHANGELOG.md](./CHANGELOG.md)；設定值、已知陷阱與跟上游同步的
+> 注意事項在 [CLAUDE.md](./CLAUDE.md)。
 > 以下是上游原本的 README。
 
 # FxEmbed <img src="https://raw.githubusercontent.com/FxEmbed/FxEmbed/main/assets/logos/fxembed.svg" height="24">

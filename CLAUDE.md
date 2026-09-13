@@ -28,41 +28,29 @@
 
 ---
 
-## 2. 與上游的差異（全部）
+## 2. 與上游的差異
 
-### 2.1 我們專屬的功能
+**完整清單在 [`CHANGELOG.md`](./CHANGELOG.md)**（改了哪些檔案、為什麼、不改會怎樣）。
+這裡只留操作上必須記得的部分。
 
-| 檔案                                                                                               | 改了什麼                                                                                                                               |
-| -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/helpers/pathRouting.ts`                                                                       | **新檔**。來源網域 → realm 對照表、`matchSourcePrefix()`、`stripSourcePrefix()`、`SELF_REDIRECT_PATHS`。是這套路由規則的單一事實來源。 |
-| `src/worker.ts`                                                                                    | `getPath` 改成先用路徑第一段判 realm，未命中才回落上游的 Host header 判定；另放行 `/2/go`、`/2/hit` 到 api realm。                     |
-| `src/realms/twitter/routes/redirects.ts`、`src/realms/bluesky/routes/redirects.ts`                 | 凡是拿 `url.pathname` 重建原站網址的地方都改走 `stripSourcePrefix()`。                                                                 |
-| `src/constants.ts`、`src/types/env.d.ts`、`esbuild.config.mjs`                                     | 新增 `GO_REDIRECT_HOST`。                                                                                                              |
-| `src/render/video.ts`、`src/embed/status.ts`、`src/embed/activity.ts`、`src/render/instantview.ts` | `/2/go`、`/2/hit` 的 host 改取 `GO_REDIRECT_HOST`（原本是 `API_HOST_LIST[0]`）。                                                       |
-| `src/helpers/utils.ts`                                                                             | `wrapForeignLinks` 補上「沒有中轉 host 就回原連結」的防呆。                                                                            |
-| `wrangler.toml`、`branding.json`、`.gitignore`                                                     | 自架設定，見 §3。                                                                                                                      |
+我們專屬的功能：單一網域 + 路徑第一段即來源網域（`src/helpers/pathRouting.ts`、
+`getPath`、兩個 realm 的 redirect handler），以及把 `/2/go`、`/2/hit` 的中轉 host
+從 `API_HOST_LIST[0]` 拆成獨立的 `GO_REDIRECT_HOST`。
 
-### 2.2 修掉的上游缺陷（**merge upstream 後要確認沒被蓋回去**）
+### merge upstream 後必須複查的六個修正
 
-1. **guest token 的 `cf` 選項**（`packages/atmosphere/src/providers/twitter/fetch.ts`）
-   在現行 Workers runtime 會拋
-   `TypeError: The 'cacheControl' and 'cacheTtl' options on cf are mutually exclusive`。
-   `cacheTtl` / `cacheEverything` 依官方文件**只適用於 GET / HEAD**，而 guest token 是 POST。
-   **沒有帳號憑證時這是唯一的取得路徑，所以每一則 X 貼文都會變成「Sorry, that post doesn't exist」。**
-2. **被吞掉的例外**（`packages/atmosphere/src/providers/twitter/conversation.ts`）
-   `fetchSingleStatus` 在無帳號代理時用 `catch (_e) { return null; }`，把所有失敗都變成
-   「貼文不存在」。補了 `console.error` —— 上面那個 bug 就是因為它而完全查不到。
-3. **profile 頁對真人 302 導回自己**（`src/realms/twitter/routes/profile.ts`）＝重導迴圈。
-4. **空環境變數變成 `['']` 而不是 `[]`**（`src/constants.ts`）。`(x ?? '').split(',')` 對空字串
-   回傳長度 1 的陣列，讓所有 `.length > 0` 檢查失效，組出 `https:///jpeg/...` 這種壞 URL。
-   18 個清單都補上 `.filter(Boolean)`，6 處 `!!Constants.XXX_LIST`（對陣列取 `!!` 永遠 true）
-   改成 `.length > 0`。
-5. **`.gitattributes` 寫成 `* text=LF`**（無效語法，git 只認 `text` / `text=auto`，換行由 `eol` 指定）。
-   在 `core.autocrlf=true` 的 Windows 上會讓 `npm run lint:eslint` 噴 13,291 個 `Delete ␍`。
-6. **測試硬編上游 branding**（`vitest.config.mts`）。加了 alias 讓測試固定讀
-   `branding.example.json`，換 branding 才不會讓 4 個測試變紅。
+`git merge upstream/main` 之後逐項確認還在。**前兩項被蓋回去不會有任何錯誤訊息**，
+只會安靜地讓 X 全部失效 / 多圖貼文吐出壞 URL：
 
----
+1. `packages/atmosphere/src/providers/twitter/fetch.ts` — guest token 的 `cf` 選項
+   （`cacheTtl` / `cacheEverything` 只適用 GET/HEAD，而它是 POST）必須維持移除。
+2. `src/constants.ts` — 18 個清單的 `.filter(Boolean)`，以及 6 處
+   `!!Constants.XXX_LIST` → `.length > 0`。
+3. `packages/atmosphere/src/providers/twitter/conversation.ts` — `fetchSingleStatus`
+   吞例外處的 `console.error`。
+4. `src/realms/twitter/routes/profile.ts` — 真人分支不可 redirect 回 `url` 自己。
+5. `.gitattributes` — 必須是 `* text=auto eol=lf`，不是上游的 `* text=LF`。
+6. `vitest.config.mts` — branding alias。
 
 ## 3. 設定
 

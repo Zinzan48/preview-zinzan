@@ -1,0 +1,155 @@
+# CHANGELOG
+
+這個 fork 與上游 [`FxEmbed/FxEmbed`](https://github.com/FxEmbed/FxEmbed) 的**全部**差異。
+
+- **Fork 基準**：upstream `main` @ `5b5b6207`（2026-09-13）
+- **範圍**：22 個檔案、+323 / −68 行
+- 操作面的說明（設定雷、驗收指令、部署參數）在 [`CLAUDE.md`](./CLAUDE.md)；
+  這裡只記錄「改了什麼、為什麼、不改會怎樣」。
+
+---
+
+## [2026-09-13] 初版自架
+
+### Added — 這個 fork 專屬（不打算回饋上游）
+
+#### 單一網域 + 路徑第一段即來源網域
+
+上游是「一個平台一個網域」，靠 Host header 分辨 realm。我們只有
+`preview.zinzan.info` 一個網域，因為短網址服務是在 302 導轉當下把連結改寫成
+`https://preview.zinzan.info/<來源網域>/<原路徑>`。
+
+| 檔案                                                                                 | 內容                                                                                                                 |
+| ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------- |
+| `src/helpers/pathRouting.ts`（新）                                                   | 來源網域→realm 對照表、`matchSourcePrefix()`、`stripSourcePrefix()`、`SELF_REDIRECT_PATHS`。這套規則的單一事實來源。 |
+| `src/worker.ts`                                                                      | `getPath` 先用路徑第一段判 realm，未命中才回落上游的 Host 判定；另放行 `/2/go`、`/2/hit` 到 api realm。              |
+| `src/realms/twitter/routes/redirects.ts`<br>`src/realms/bluesky/routes/redirects.ts` | 所有拿 `url.pathname` 重建原站網址的地方改走 `stripSourcePrefix()`。                                                 |
+
+用**白名單**（只認 `x.com`、`twitter.com`、`bsky.app`、`instagram.com`、`tiktok.com` 及其
+`www.` 變體）而非黑名單：twitter realm 底下有十多個固定字串開頭的路由
+（`/i`、`/dir`、`/dl`、`/status`、`/statuses`、`/article`、`/hashtag`、`/version`、
+`/owoembed`、`/robots.txt`、`/favicon.ico`、`/set_base_redirect`、`/api`），
+黑名單漏一個就靜默壞掉。
+
+> **為什麼 redirect handler 也要改**：Hono 的 `getPath` 只影響路由比對，**不會改寫
+> `c.req.url`**（`Request.url` 依 Fetch 規範唯讀）。不處理的話
+> `/bsky.app/profile/bsky.app` 會得到 `Location: https://bsky.app/bsky.app/profile/bsky.app`。
+
+#### `GO_REDIRECT_HOST` 環境變數
+
+`og:video` 與 Telegram Instant View 外部連結的 302 中轉 host（`/2/go`、`/2/hit`）
+從 `API_HOST_LIST[0]` 拆出來成為獨立變數。
+
+**為什麼必須拆**：`API_HOST_LIST` 不只決定 realm，還同時決定 `flags.api`
+（`src/realms/twitter/routes/status.ts`、`routes/profile.ts`）。主網域一旦放進
+`API_HOST_LIST`，每則貼文都會回 **JSON 而不是 OG HTML**，整個預覽服務等於失效。
+拆開後 `API_HOST_LIST` 維持留空，服務只需要一個網域。
+
+影響檔案：`src/constants.ts`、`src/types/env.d.ts`、`esbuild.config.mjs`、
+`src/render/video.ts`、`src/embed/status.ts`、`src/embed/activity.ts`、
+`src/render/instantview.ts`。
+
+`src/helpers/utils.ts` 的 `wrapForeignLinks` 另補上「沒有中轉 host 就回原連結」的防呆，
+避免組出 `https://undefined/2/hit?url=…`。
+
+### Fixed — 上游缺陷（**merge upstream 後必須確認還在**）
+
+#### 1. guest token 的 `cf` 選項讓無憑證自架完全取不到 X 資料
+
+`packages/atmosphere/src/providers/twitter/fetch.ts`
+
+現行 Workers runtime 會拋：
+
+```
+TypeError: The 'cacheControl' and 'cacheTtl' options on cf are mutually exclusive.
+```
+
+`cacheTtl` / `cacheEverything` 依 Cloudflare 官方文件**只適用於 GET / HEAD**，
+而 guest token 請求是 **POST** —— 那組設定本來就不會生效，現在還會直接拋例外。
+另一個只當 `caches.default` cache key 用的 Request 從來不會被 fetch，`cf` 對它同樣
+沒有意義，卻會讓 `cache.match` / `put` 拋同一個錯。兩處都移除；token 的保存期限
+本來就是由 put 進去的 Response 上的 `cache-control` 決定的。
+
+**沒有帳號憑證時這是唯一的取得路徑**，所以症狀是每一則 X 貼文都變成
+「Sorry, that post doesn't exist」。
+
+#### 2. 被吞掉的例外讓上面那個 bug 完全查不到
+
+`packages/atmosphere/src/providers/twitter/conversation.ts`
+
+`fetchSingleStatus` 在沒有帳號代理時用 `catch (_e) { return null; }`，
+把所有失敗都變成「貼文不存在」，沒有任何 log。補上 `console.error`。
+
+#### 3. profile 頁對真人 302 導回自己
+
+`src/realms/twitter/routes/profile.ts`
+
+實測 `https://fxtwitter.com/jack` 帶真人 UA 會回 `302 → https://fxtwitter.com/jack`，
+瀏覽器判定為重導迴圈。原因是 human 分支直接 redirect 到 `url`（`new URL(c.req.url)`），
+而算好的原站網址只是 bot 分支裡的區域變數。把目標提到分岔之前，兩個分支共用。
+
+#### 4. 空環境變數變成 `['']` 而不是 `[]`
+
+`src/constants.ts`
+
+`(process.env.X ?? '').split(',')` 對空字串回傳**長度 1** 的陣列，
+所有 `.length > 0` / `.length === 0` 的 graceful 檢查因此全部失效，程式拿空字串當
+hostname。實測（對編譯後的 `handleMosaic`）：
+
+```
+[]    -> null（正確停用）
+['']  -> {"formats":{"jpeg":"https:///jpeg/123/AAA/BBB", …}}   ← 壞 URL
+```
+
+18 個清單補上 `.map(s => s.trim()).filter(Boolean)`（比照同檔已經寫對的
+`BLUESKY_API_HOST_LIST`），`API_HOST_ROOT` 改成同樣的 IIFE 形式。
+另外 6 處 `!!Constants.XXX_LIST`（對陣列取 `!!` **永遠是 true**）改成 `.length > 0`，
+否則 filter 了也沒用 —— `src/render/video.ts`、`src/embed/status.ts`、
+`src/embed/activity.ts`、`src/helpers/giftranscode.ts`、`src/render/instantview.ts`。
+
+自架時 `MOSAIC_*` / `GIF_TRANSCODE_*` / `POLYGLOT_*` 必須留空（上游預設值全部指向
+FxEmbed 官方的線上服務），所以這個陷阱一定要先修掉。
+
+#### 5. `.gitattributes` 是無效語法
+
+上游寫 `* text=LF`，但 git 只認 `text` / `text=auto`，換行由獨立的 `eol` 屬性指定，
+整條屬性等同沒設定。在 `core.autocrlf=true` 的 Windows 上 checkout 會把工作目錄轉成
+CRLF，`npm run lint:eslint` 噴出 **13,291 個** `prettier/prettier "Delete ␍"`，
+lint 完全沒辦法當驗證用。改成 `* text=auto eol=lf` 後降到 0。
+index 內容一直都是 LF（`git ls-files --eol` 可證），所以這個修正不動任何檔案內容。
+
+#### 6. 測試硬編上游 branding
+
+`vitest.config.mts`
+
+4 個測試直接斷言 `branding.example.json` 的值（`FxTwitter`、`FxInstagram`、
+`github.com/FxEmbed/FxEmbed`），但 `src/helpers/branding.ts` 是 import
+`branding.json` —— 自架者自己的那份。只要換了 branding 測試就變紅。
+加 alias 讓測試固定讀 example。
+
+### Changed — 自架設定
+
+| 檔案                      | 內容                                                                                                                                                                                                                                                                   |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `wrangler.toml`（進版控） | 移除 `analytics_engine_datasets`；不寫 `account_id`（public repo，由 Workers Builds 的 API token 決定）；宣告 Custom Domain `preview.zinzan.info`。                                                                                                                    |
+| `branding.json`（進版控） | 單一 zone，`domains: ["zinzan.info"]`（`getBranding` 取 base domain）、`redirect` 指向 `https://www.zinzan.info`、favicon 改用自有資產。`name` 會成為失敗頁的 `og:title`，所以刻意取一個不會跟貼文作者名相撞的值 —— 健康探測靠這點區分「真的取到資料」與「服務壞掉」。 |
+| `.gitignore`              | 用否定規則放行上面兩個檔（不刪上游原本的行，避免 upstream 改動時衝突）；忽略 `.codegraph/`。                                                                                                                                                                           |
+
+### Style
+
+`packages/atmosphere/src/providers/twitter/processor.ts` 的一處 prettier 違規
+（上游既有，會讓 `npm run lint:eslint` 直接失敗）。純格式，無行為變更。
+
+---
+
+## 驗證紀錄（2026-09-13）
+
+- `npm run lint:eslint` → exit 0
+- `npx vitest run` → 62 檔 / 395 測試全綠
+- `npx tsc --noEmit` → 155 error（基準 159；差額是順手修掉的同類問題，非新增）
+- 線上（`https://preview.zinzan.info`，build `c1e1140`）：
+  - 探測 UA `ShortUrlBot/1.0` → 200 + `jack (@jack)` / `Bluesky (@bsky.app)`，無 `Location`
+  - Telegram / Discord / LINE 爬蟲 → 200 + 正確 OG；Instagram 亦可取得資料
+  - 真人 UA → 302 回原站，`Location` 無前綴殘留（x.com、profile、bsky、instagram）
+  - `/2/go`、`/2/hit` → 302；根路徑 → 302 到 `https://www.zinzan.info`
+  - 頁面內無 `https:///`、`https://undefined`、`api.fxtwitter.com`
