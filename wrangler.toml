@@ -13,5 +13,12 @@ send_metrics = false
 pattern = "preview.zinzan.info"
 custom_domain = true
 
+# 沒有這段的話線上的 console.log 完全查不到，出問題只能靠黑箱推測 ——
+# Threads 在本機 100% 成功、線上只有 25%，就是因為沒有 log 而卡了一輪。
+# 免費方案含每日 20 萬筆事件、保留 3 天，本服務的用量遠低於此。
+[observability]
+enabled = true
+head_sampling_rate = 1
+
 [build]
 command = "npm run build"

@@ -43,9 +43,11 @@
 - **憑證會過期**，更新流程見 skill [`social-account-credentials`](./.claude/skills/social-account-credentials/SKILL.md)。
   徵兆是安靜退化（NSFW 貼文突然看不到、IG 開始不穩），公開貼文仍正常，
   所以不會有明顯的故障訊號。
-- **Worker observability 目前沒開。** `wrangler.toml` 沒有 `[observability]` 區塊，
-  所以線上的 `console.log` 查不到。要診斷線上問題（例如憑證有沒有被載入、
-  上游回了什麼）需要先開啟它。
+- **Threads 在線上只有約 25% 的成功率**（本機 100%）。X 與 Instagram 都穩定，
+  所以不是機制問題。失敗是隨機的，不是連續失敗，推測是 Meta 對 Cloudflare 的
+  出口 IP 機率性地擋 —— 但那還只是推論，要靠線上 log 確認。
+  在確認並解決之前，**Threads 不能寫進 `TBDOMAINREWRITE`**：健康探測會時通時斷，
+  規則會在啟用與停用之間震盪。
 - **跟上游同步**：`git fetch upstream && git merge upstream/main` 之後，
   務必複查 `CHANGELOG.md` 列的六個上游缺陷修正還在不在。
   其中 guest token 的 `cf` 選項與 `constants.ts` 的 `filter(Boolean)`
