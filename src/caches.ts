@@ -90,7 +90,20 @@ export const cacheMiddleware = (): MiddlewareHandler => async (c, next) => {
          writing to cache */
       try {
         if (c.executionCtx) {
-          c.executionCtx.waitUntil(cache.put(cacheKey, response.clone()));
+          /* 失敗頁不要寫進快取。上游對成功與失敗一視同仁，於是上游的一次抖動
+             （Meta 對 Cloudflare 出口 IP 的限流、rate limit、逾時）會被凍在快取裡
+             持續服務，即使下一秒上游就恢復了。
+
+             失敗頁跟成功頁一樣回 HTTP 200 —— 那是刻意的，爬蟲要 200 才會渲染
+             og:description 裡的錯誤訊息 —— 所以只能靠 returnError 打的標記分辨。
+
+             這對機率性失敗的上游特別重要：成功的那次留在快取服務所有爬蟲，
+             失敗的那次下次重試。 */
+          if (response.headers.get(Constants.EMBED_ERROR_HEADER)) {
+            console.log('Not caching error embed');
+          } else {
+            c.executionCtx.waitUntil(cache.put(cacheKey, response.clone()));
+          }
         }
       } catch (error) {
         console.error((error as Error).stack);
