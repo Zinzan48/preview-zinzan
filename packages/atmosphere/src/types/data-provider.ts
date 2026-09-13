@@ -4,5 +4,6 @@ export enum DataProvider {
   Bluesky = 'bluesky',
   TikTok = 'tiktok',
   Mastodon = 'mastodon',
-  Instagram = 'instagram'
+  Instagram = 'instagram',
+  Threads = 'threads'
 }

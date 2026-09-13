@@ -28,6 +28,7 @@ import { normalizeLanguage } from '../helpers/language';
 import { getVideoTranscodeDomain, getVideoTranscodeDomainBluesky } from '../helpers/transcode';
 import { constructTikTokVideo } from '@fxembed/atmosphere/providers/tiktok/conversation';
 import { constructInstagramPost } from '@fxembed/atmosphere/providers/instagram/post';
+import { constructThreadsPost } from '@fxembed/atmosphere/providers/threads/post';
 import { InputFlags } from '../types/types';
 import { formatRuntime } from '../helpers/runtime';
 
@@ -72,7 +73,8 @@ const PROVIDER_SITE_NAMES: Record<DataProvider, string> = {
   [DataProvider.Bluesky]: 'Bluesky',
   [DataProvider.Instagram]: 'Instagram',
   [DataProvider.TikTok]: 'TikTok',
-  [DataProvider.Mastodon]: 'Mastodon'
+  [DataProvider.Mastodon]: 'Mastodon',
+  [DataProvider.Threads]: 'Threads'
 };
 
 export const returnError = (c: Context, error: string): Response => {
@@ -173,7 +175,19 @@ export const handleStatus = async (
     const proxyBase = `${requestUrl.protocol}//${requestUrl.host}`;
     thread = await constructTikTokVideo(statusId, proxyBase, userAgent);
   } else if (provider === DataProvider.Instagram) {
-    thread = (await constructInstagramPost(statusId, userAgent)) as SocialThread;
+    /* credentialKey 是 Instagram / Threads 帳號代理的唯一入口：
+       hasInstagramAccountProxy() 在 ctx 沒帶 credentialKey 時直接回 false，
+       resolveInstagramAccounts() 就回空陣列 —— 也就是設好的憑證完全不會被使用。
+       Twitter 那條是靠 twitterBuildHostFromContext(c) 把它帶進去的，
+       這兩條原本漏了，所以憑證只對 atmosphere JSON API 有效、對嵌入頁無效。 */
+    thread = (await constructInstagramPost(statusId, userAgent, {
+      credentialKey: c.env?.CREDENTIAL_KEY
+    })) as SocialThread;
+  } else if (provider === DataProvider.Threads) {
+    thread = (await constructThreadsPost(statusId, userAgent, {
+      userAgent,
+      credentialKey: c.env?.CREDENTIAL_KEY
+    })) as SocialThread;
   } else {
     return returnError(c, Strings.ERROR_API_FAIL);
   }

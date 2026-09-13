@@ -90,6 +90,7 @@ import { atmosphere } from './realms/atmosphere/router';
 import { getBranding } from './helpers/branding';
 import { tiktok } from './realms/tiktok/router';
 import { instagram } from './realms/instagram/router';
+import { threads } from './realms/threads/router';
 
 const noCache = 'max-age=0, no-cache, no-store, must-revalidate';
 const embeddingClientRegex =
@@ -278,6 +279,7 @@ app.get('/', c => {
       /bluesky/...     FxBluesky
       /tiktok/...      FixTok
       /instagram/...   FxInstagram
+      /threads/...     Threads
       /api/...         FxTwitter API
       /blueskyapi/...  FxBluesky API
       /atmosphere/...  Atmosphere API (multi-provider)
@@ -293,6 +295,7 @@ app.route(`/twitter`, twitter);
 app.route(`/bluesky`, bluesky);
 app.route(`/tiktok`, tiktok);
 app.route(`/instagram`, instagram);
+app.route(`/threads`, threads);
 
 app.all('/error', async c => {
   c.header('cache-control', noCache);
