@@ -15,6 +15,20 @@ import { extractLsdFromHtml } from './extractors.js';
 const DEFAULT_UA =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
+/**
+ * 對 Threads 一律用瀏覽器 UA，不要轉發呼叫端的 UA。
+ *
+ * Threads 會依 UA 決定回什麼：實測帶 `TelegramBot (like TwitterBot)` 拿得到貼文，
+ * 帶 `ShortUrlBot/1.0` 就只拿到空殼 —— 而健康探測正是用後者那種 UA，
+ * 於是規則永遠通不過探測、永遠不會生效，卻又完全沒有錯誤訊息。
+ *
+ * 我們是代理：上游該看到的是這個服務的身分，而不是原始客戶端五花八門的 bot UA。
+ * Instagram provider 用 `friendlyUserAgent` 也是同一個理由。
+ */
+function upstreamUserAgent(_callerUserAgent: string | undefined): string {
+  return DEFAULT_UA;
+}
+
 function cookieHeaderToMap(cookie: string): Map<string, string> {
   const m = new Map<string, string>();
   for (const part of cookie.split(';')) {
@@ -58,7 +72,7 @@ export async function fetchThreadsSession(
         redirect: 'follow',
         signal,
         headers: {
-          'User-Agent': userAgent ?? DEFAULT_UA,
+          'User-Agent': upstreamUserAgent(userAgent),
           'Accept':
             'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
           'Accept-Language': 'en-US,en;q=0.9',
@@ -117,7 +131,7 @@ async function threadsGraphql(params: {
         redirect: 'follow',
         signal,
         headers: {
-          'User-Agent': params.userAgent ?? DEFAULT_UA,
+          'User-Agent': upstreamUserAgent(params.userAgent),
           'Accept': '*/*',
           'Accept-Language': 'en-US,en;q=0.9',
           'Content-Type': 'application/x-www-form-urlencoded',
