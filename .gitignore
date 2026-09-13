@@ -23,3 +23,6 @@ credentials.enc.json
 # wrangler dev 的本機 runtime secrets（含 CREDENTIAL_KEY），絕不可進版控
 .dev.vars
 .dev.vars.*
+
+# playwright MCP 的暫存快照與 log
+.playwright-mcp/
