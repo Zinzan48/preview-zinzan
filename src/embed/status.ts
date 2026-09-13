@@ -80,6 +80,10 @@ const PROVIDER_SITE_NAMES: Record<DataProvider, string> = {
 export const returnError = (c: Context, error: string): Response => {
   const branding = getBranding(c);
   console.log('branding', JSON.stringify(branding));
+  /* 讓 cacheMiddleware 知道這頁不該被快取。上游對成功與失敗一視同仁地 cache.put，
+     所以上游一次抖動（Meta 限流、rate limit）會被凍在快取裡持續服務，
+     即使下一秒上游就恢復了。 */
+  c.header(Constants.EMBED_ERROR_HEADER, '1');
   return c.html(
     Strings.BASE_HTML.format({
       runtime: formatRuntime(),

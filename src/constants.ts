@@ -176,6 +176,10 @@ export const Constants = {
     'access-control-allow-origin': '*',
     'content-type': 'application/json'
   },
+  /* 標記「這是失敗頁，不是貼文」。失敗頁跟成功頁一樣回 HTTP 200（爬蟲才會渲染
+     og:description 裡的錯誤訊息），所以快取層沒有別的辦法分辨兩者。
+     由 returnError 統一加上，cacheMiddleware 據此跳過寫入。 */
+  EMBED_ERROR_HEADER: 'x-embed-error',
   POLL_TWEET_CACHE: 'max-age=60',
   DEFAULT_COLOR: '#10A3FF',
   FRIENDLY_USER_AGENT: `Mozilla/5.0 FxEmbedBot/2.0 (like Twitterbot; +https://fxembed.com/crawler)`
