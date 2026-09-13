@@ -37,7 +37,31 @@
 > 線上 log（Workers observability，2026-09-13 13:15–13:40Z）：
 > 9 次 `text_feed/{id}/single_thread/` 請求 **9 次全部** 404，
 > 本機用同一組憑證直接打也是 302 → 登入頁。
-> 一度以為是「Meta 機率性封鎖 Cloudflare 對外 IP」，**不是**。
+
+### 修正後的線上驗收：Threads 仍然不通，但原因終於看得見了
+
+部署後同一則貼文跑 9 次（三種前綴各 3 次）**全部失敗**，但 log 從「貼文不存在」
+變成兩條互相獨立的真實原因，各 9/9：
+
+| 路徑 | log | 意義 |
+| --- | --- | --- |
+| 私有 API（憑證） | `[threads] private API redirected to login (session invalid)` | IG session 已過期 |
+| logged-out GraphQL | `[threads] graphql non-ok` status **401** | 見下 |
+
+logged-out 那條，Meta 回的是：
+
+```json
+{"message":"Please wait a few minutes before you try again.","require_login":true,
+ "igweb_rollout":true,"status":"fail"}
+```
+
+**所以「Meta 限流 Cloudflare 出口 IP」這個推論對了一半**：它不適用於私有 API 那條
+（那純粹是憑證死了），但確實適用於 logged-out GraphQL —— 這才是先前 25% 成功率的來源，
+限流偶爾放行。本機走家用 IP 不會碰到，所以本機一直是 100%。
+
+兩條路同時斷，Threads 才會 0%。**要恢復就得讓私有 API 那條活過來**，也就是重新擷取
+IG 憑證；帶著有效 session 的請求不受 logged-out 限流管轄。
+判定 session 死活的方法見 skill `social-account-credentials`。
 
 ---
 
