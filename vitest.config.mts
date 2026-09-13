@@ -47,6 +47,17 @@ export default defineConfig({
       }
     })
   ],
+  resolve: {
+    alias: [
+      {
+        // 測試斷言的是上游 branding.example.json 的值（FxTwitter / FxInstagram /
+        // github.com/FxEmbed/FxEmbed），但實際部署讀的是自架者自己的 branding.json。
+        // 讓測試固定讀 example，測試套件才不會因為換了 branding 就變紅、失去回歸檢測的作用。
+        find: /^.*branding\.json$/,
+        replacement: path.join(__dirname, 'branding.example.json')
+      }
+    ]
+  },
   // Vite SSR can replace `process.env` with `{}` unless this is set; pool Workers tests then see
   // empty env and mis-route hosts (e.g. API hits the embed realm → 302). See workers-sdk#8718.
   ssr: {
