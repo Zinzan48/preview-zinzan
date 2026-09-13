@@ -1,6 +1,7 @@
 import type { SocialThread } from '../../types/api-status.js';
 import { resolveThreadsAccounts, type ThreadsRequestContext } from './account-proxy.js';
 import { fetchThreadsPostPage, fetchThreadsSession, invalidateThreadsSession } from './client.js';
+import { fetchThreadsPageJson } from './page-scrape.js';
 import { fetchThreadsSingleThread } from './private-api.js';
 import { containingThreadChain } from './private-processor.js';
 import { buildThreadsTombstone, threadsPostToStatus } from './processor.js';
@@ -63,6 +64,34 @@ function threadFromChain(chain: Record<string, unknown>[], shortcode: string): S
 }
 
 /**
+ * 把 post-page 查詢的結果轉成 SocialThread。
+ *
+ * 頁面 HTML 內嵌的那份資料與 logged-out GraphQL 的回應是**同一個形狀**
+ * （兩者都是 `BarcelonaPostPageDirectQuery` 的結果），所以兩條取數路徑共用這一段。
+ */
+function threadFromPostPageJson(json: unknown, shortcode: string): SocialThread {
+  const { edges } = extractPostPageEdges(json);
+  const focalNode = edges[0]?.node;
+  if (!focalNode) {
+    return notFound();
+  }
+
+  const items = focalNode.thread_items;
+  if (!Array.isArray(items) || items.length === 0) {
+    return notFound();
+  }
+
+  const chain = items
+    .map(it => (it as { post?: Record<string, unknown> })?.post)
+    .filter((p): p is Record<string, unknown> => Boolean(p));
+  if (!chain.length) {
+    return notFound();
+  }
+
+  return threadFromChain(chain, shortcode);
+}
+
+/**
  * Resolve a single Threads post.
  *
  * With an account proxy configured this reads `text_feed/{post_id}/single_thread/`, which the
@@ -106,6 +135,25 @@ export async function constructThreadsPost(
        整片假性失效。account-proxy 那側另外把登入頁還原成 401，這裡是第二道防線。 */
   }
 
+  /* 讀頁面優先於 GraphQL。
+
+     兩者拿到的是同一份資料（頁面內嵌的就是 `BarcelonaPostPageDirectQuery` 的結果），
+     差別只在 Meta 怎麼對待這兩種請求：從 Cloudflare 出口 IP 打 GraphQL 有 75–80%
+     會被回 401「Please wait a few minutes before you try again」，而讀頁面實測 20/20
+     成功。Meta 擋的是 API，不擋爬蟲讀頁面。
+
+     延遲也沒有變差 —— 串流到內嵌區塊收完就中止，線上中位數 1.95 秒，
+     與 GraphQL 成功時相當。 */
+  const page = await fetchThreadsPageJson(`/t/${encodeURIComponent(shortcode)}`);
+  if (page.ok && page.json != null) {
+    const thread = threadFromPostPageJson(page.json, shortcode);
+    if (thread.code === 200) {
+      return thread;
+    }
+  }
+
+  /* GraphQL 留作最後手段。它現在很少會成功，但成本只有一次往返，
+     而且萬一 Meta 改掉頁面的內嵌結構，這條路就是唯一還活著的。 */
   const session = await fetchThreadsSession(userAgent);
   if (!session) {
     return { code: 500, status: null, thread: null, author: null };
@@ -135,23 +183,5 @@ export async function constructThreadsPost(
     return { code: res.status === 404 ? 404 : 500, status: null, thread: null, author: null };
   }
 
-  const { edges } = extractPostPageEdges(res.json);
-  const focalNode = edges[0]?.node;
-  if (!focalNode) {
-    return notFound();
-  }
-
-  const items = focalNode.thread_items;
-  if (!Array.isArray(items) || items.length === 0) {
-    return notFound();
-  }
-
-  const chain = items
-    .map(it => (it as { post?: Record<string, unknown> })?.post)
-    .filter((p): p is Record<string, unknown> => Boolean(p));
-  if (!chain.length) {
-    return notFound();
-  }
-
-  return threadFromChain(chain, shortcode);
+  return threadFromPostPageJson(res.json, shortcode);
 }

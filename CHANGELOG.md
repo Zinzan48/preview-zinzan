@@ -9,6 +9,55 @@
 
 ---
 
+## [2026-09-13] Threads 改走「爬蟲 UA 讀頁面」
+
+### Added
+
+**`providers/threads/page-scrape.ts`** —— 不再用 logged-out GraphQL 取 Threads 貼文，
+改成用爬蟲 UA 讀貼文頁、取出頁面內嵌的查詢結果。
+
+起因是量到的事實：同一支 GraphQL 查詢，從 Cloudflare 出口 IP 打 **20–25% 成功**，
+從家用 IP **100% 成功**。瓶頸是出口 IP 的信譽。但 **Meta 擋的只有 API** ——
+用爬蟲 UA 讀同一則貼文的頁面，從 Cloudflare 實測 **20/20 成功**，
+`require_login` 一次都沒出現。
+
+關鍵在於頁面裡內嵌的 `adp_BarcelonaPostPageDirectQueryRelayPreloader`
+**就是同一支 Relay 查詢的結果**，形狀與 GraphQL 回應完全相同 ——
+所以 processor 那一整套（含 `linked_inline_media` fallback）原封不動沿用，
+只換掉傳輸層。`post.ts` 把 edges → SocialThread 那段抽成 `threadFromPostPageJson`，
+兩條路徑共用。
+
+三個實測決定的設計：
+
+| 決定 | 依據 |
+| --- | --- |
+| **串流到資料區塊收完就 `cancel()`** | 資料落在文件 50–92% 處。讀完整份 body 線上要 3.7–5.2 秒，中止後 **1.83 秒**（中位數，最大 2.49） |
+| **用 bingbot，不用 Googlebot** | 資料同樣完整但回覆少得多（21 vs 45 edges），線上 1.83s vs 2.57s。只需要焦點貼文，回覆是純成本 |
+| **一定要爬蟲 UA** | 帶瀏覽器 UA 拿到的是空殼頁（270 KB、0 個 `thread_items`），內容全靠前端 JS 補，Worker 裡沒有 JS 可跑 |
+
+掃描維持 O(n)（每個 chunk 只從上次位置往後找）—— 緩衝區會長到 700 KB 以上，
+每個 chunk 重掃一次就會吃掉免費方案 10 ms 的 CPU 額度。實際的 `JSON.parse` 只花 **0–1 ms**。
+
+GraphQL 保留為最後手段：它現在很少成功，但萬一 Meta 改掉頁面的內嵌結構，那是唯一還活著的路。
+
+### Fixed
+
+**逾時被誤報成「頁面沒有資料區塊」。** 串流讀取原本把所有例外都吞掉當作「沒找到」，
+但逾時會 abort body 串流讓 `read()` 拋出 —— 於是「來不及讀完」會被記成
+「Meta 改了頁面結構」。兩者的處置完全不同（前者調預算，後者要重寫解析），
+所以改成只有串流**正常結束**卻沒找到才算「沒有區塊」，其餘往上拋並記錄原因。
+
+> 本機開發時必然會踩到這個：家用連線讀完 @zuck 那一頁要 4–4.7 秒，
+> 逼近 5 秒的預算，而線上只要 1.8 秒。
+
+### 附帶發現（尚未實作）
+
+`/share/<code>` 的頁面**帶著完全一樣的資料區塊**，解析出來直接就是正規貼文
+（實測 `BAWnHgstpr` → `DdNwfAwiZcO` / `150_one_fifty`）。所以那條路由不需要
+「先解析再抓第二次」，同一套取數流程直接吃下去即可。見 `TODO.md`。
+
+---
+
 ## [2026-09-13] 失敗頁不再進快取
 
 ### Fixed
