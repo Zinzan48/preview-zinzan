@@ -55,6 +55,14 @@ export const profileRequest = async (c: Context) => {
   if (cacheControl) {
     c.header('cache-control', cacheControl);
   }
+  /* 導向原站個人頁的網址。原本只在 bot 分支裡算，human 分支卻直接 redirect 到
+     `url`（也就是請求自己的網址），造成瀏覽器重導迴圈；單一網域自架後路徑還會
+     多帶一段 /x.com 前綴，更不可能自己收斂。兩邊共用同一個目標。 */
+  let profileRedirectUrl = `${baseUrl}/${username}`;
+  if (baseUrl.startsWith('twitter:/')) {
+    profileRedirectUrl = `twitter://user?screen_name=${username}`;
+  }
+
   /* Direct media or API access bypasses bot check, returning same response regardless of UA */
   if (isBotUA || flags.api) {
     if (isBotUA) {
@@ -65,10 +73,6 @@ export const profileRequest = async (c: Context) => {
 
     const profileResponse = await handleProfile(c, username, flags);
 
-    let newUrl = `${baseUrl}/${handle}`;
-    if (baseUrl.startsWith('twitter:/')) {
-      newUrl = `twitter://user?screen_name=${handle}`;
-    }
     /* Check for custom redirect */
 
     if (!isBotUA && !flags.api) {
@@ -81,10 +85,10 @@ export const profileRequest = async (c: Context) => {
         if (appBody.includes('<!doctype html>')) {
           return c.html(appBody, 200);
         } else {
-          return c.redirect(newUrl, 302);
+          return c.redirect(profileRedirectUrl, 302);
         }
       } else {
-        return c.redirect(newUrl, 302);
+        return c.redirect(profileRedirectUrl, 302);
       }
     }
 
@@ -103,10 +107,10 @@ export const profileRequest = async (c: Context) => {
       if (appBody.includes('<!doctype html>')) {
         return c.html(appBody, 200);
       } else {
-        return c.redirect(url, 302);
+        return c.redirect(profileRedirectUrl, 302);
       }
     } else {
-      return c.redirect(url, 302);
+      return c.redirect(profileRedirectUrl, 302);
     }
   }
 };
