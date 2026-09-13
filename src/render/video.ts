@@ -89,7 +89,7 @@ export const renderVideo = (
         : getVideoTranscodeDomainBluesky(status.id);
     url = `https://${domain}${new URL(url).pathname}`;
   } else if (
-    experimentCheck(Experiment.VIDEO_REDIRECT_WORKAROUND, !!Constants.API_HOST_LIST) &&
+    experimentCheck(Experiment.VIDEO_REDIRECT_WORKAROUND, Constants.API_HOST_LIST.length > 0) &&
     (userAgent?.includes('Discordbot') || userAgent?.includes('TelegramBot')) &&
     status.provider !== DataProvider.TikTok
   ) {

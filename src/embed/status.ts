@@ -329,7 +329,10 @@ export const handleStatus = async (
               : getVideoTranscodeDomainBluesky(status.author.id);
           redirectUrl = `https://${domain}${new URL(redirectUrl).pathname}`;
         } else if (
-          experimentCheck(Experiment.VIDEO_REDIRECT_WORKAROUND, !!Constants.API_HOST_LIST) &&
+          experimentCheck(
+            Experiment.VIDEO_REDIRECT_WORKAROUND,
+            Constants.API_HOST_LIST.length > 0
+          ) &&
           status.provider !== DataProvider.TikTok &&
           status.provider !== DataProvider.Instagram
         ) {

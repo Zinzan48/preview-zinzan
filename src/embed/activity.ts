@@ -65,7 +65,7 @@ const convertArticleMediaToAttachment = (
       sizeMultiplier = 2;
     }
 
-    if (experimentCheck(Experiment.VIDEO_REDIRECT_WORKAROUND, !!Constants.API_HOST_LIST)) {
+    if (experimentCheck(Experiment.VIDEO_REDIRECT_WORKAROUND, Constants.API_HOST_LIST.length > 0)) {
       const redirectedUrl = `https://${Constants.API_HOST_LIST[0]}/2/go?url=${encodeURIComponent(videoUrl)}`;
       return {
         id: media.media_id,
@@ -621,7 +621,10 @@ export const handleActivity = async (
               }
               // Apply video redirect workaround, but NOT for TikTok/Instagram (CDN URLs work directly)
               if (
-                experimentCheck(Experiment.VIDEO_REDIRECT_WORKAROUND, !!Constants.API_HOST_LIST) &&
+                experimentCheck(
+                  Experiment.VIDEO_REDIRECT_WORKAROUND,
+                  Constants.API_HOST_LIST.length > 0
+                ) &&
                 thread.status?.provider !== DataProvider.TikTok &&
                 thread.status?.provider !== DataProvider.Instagram
               ) {

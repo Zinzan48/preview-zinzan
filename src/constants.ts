@@ -1,48 +1,108 @@
 export const Constants = {
   /* Populated from process.env (.env under Bun/Node, or each key inlined by esbuild for Workers). */
-  STANDARD_DOMAIN_LIST: (process.env.STANDARD_DOMAIN_LIST ?? '').split(','),
-  STANDARD_BSKY_DOMAIN_LIST: (process.env.STANDARD_BSKY_DOMAIN_LIST ?? '').split(','),
-  STANDARD_TIKTOK_DOMAIN_LIST: (process.env.STANDARD_TIKTOK_DOMAIN_LIST ?? '').split(','),
-  STANDARD_INSTAGRAM_DOMAIN_LIST: (process.env.STANDARD_INSTAGRAM_DOMAIN_LIST ?? '').split(','),
-  DIRECT_MEDIA_DOMAINS: (process.env.DIRECT_MEDIA_DOMAINS ?? '').split(','),
-  TEXT_ONLY_DOMAINS: (process.env.TEXT_ONLY_DOMAINS ?? '').split(','),
-  INSTANT_VIEW_DOMAINS: (process.env.INSTANT_VIEW_DOMAINS ?? '').split(','),
-  GALLERY_DOMAINS: (process.env.GALLERY_DOMAINS ?? '').split(','),
-  FORCE_MOSAIC_DOMAINS: (process.env.FORCE_MOSAIC_DOMAINS ?? '').split(','),
-  OLD_EMBED_DOMAINS: (process.env.OLD_EMBED_DOMAINS ?? '').split(','),
-  MOSAIC_DOMAIN_LIST: (process.env.MOSAIC_DOMAIN_LIST ?? '').split(','),
-  MOSAIC_BSKY_DOMAIN_LIST: (process.env.MOSAIC_BSKY_DOMAIN_LIST ?? '').split(','),
-  POLYGLOT_DOMAIN_LIST: (process.env.POLYGLOT_DOMAIN_LIST ?? '').split(','),
+  STANDARD_DOMAIN_LIST: (process.env.STANDARD_DOMAIN_LIST ?? '')
+    .split(',')
+    .map((s: string) => s.trim())
+    .filter(Boolean),
+  STANDARD_BSKY_DOMAIN_LIST: (process.env.STANDARD_BSKY_DOMAIN_LIST ?? '')
+    .split(',')
+    .map((s: string) => s.trim())
+    .filter(Boolean),
+  STANDARD_TIKTOK_DOMAIN_LIST: (process.env.STANDARD_TIKTOK_DOMAIN_LIST ?? '')
+    .split(',')
+    .map((s: string) => s.trim())
+    .filter(Boolean),
+  STANDARD_INSTAGRAM_DOMAIN_LIST: (process.env.STANDARD_INSTAGRAM_DOMAIN_LIST ?? '')
+    .split(',')
+    .map((s: string) => s.trim())
+    .filter(Boolean),
+  DIRECT_MEDIA_DOMAINS: (process.env.DIRECT_MEDIA_DOMAINS ?? '')
+    .split(',')
+    .map((s: string) => s.trim())
+    .filter(Boolean),
+  TEXT_ONLY_DOMAINS: (process.env.TEXT_ONLY_DOMAINS ?? '')
+    .split(',')
+    .map((s: string) => s.trim())
+    .filter(Boolean),
+  INSTANT_VIEW_DOMAINS: (process.env.INSTANT_VIEW_DOMAINS ?? '')
+    .split(',')
+    .map((s: string) => s.trim())
+    .filter(Boolean),
+  GALLERY_DOMAINS: (process.env.GALLERY_DOMAINS ?? '')
+    .split(',')
+    .map((s: string) => s.trim())
+    .filter(Boolean),
+  FORCE_MOSAIC_DOMAINS: (process.env.FORCE_MOSAIC_DOMAINS ?? '')
+    .split(',')
+    .map((s: string) => s.trim())
+    .filter(Boolean),
+  OLD_EMBED_DOMAINS: (process.env.OLD_EMBED_DOMAINS ?? '')
+    .split(',')
+    .map((s: string) => s.trim())
+    .filter(Boolean),
+  MOSAIC_DOMAIN_LIST: (process.env.MOSAIC_DOMAIN_LIST ?? '')
+    .split(',')
+    .map((s: string) => s.trim())
+    .filter(Boolean),
+  MOSAIC_BSKY_DOMAIN_LIST: (process.env.MOSAIC_BSKY_DOMAIN_LIST ?? '')
+    .split(',')
+    .map((s: string) => s.trim())
+    .filter(Boolean),
+  POLYGLOT_DOMAIN_LIST: (process.env.POLYGLOT_DOMAIN_LIST ?? '')
+    .split(',')
+    .map((s: string) => s.trim())
+    .filter(Boolean),
   POLYGLOT_ACCESS_TOKEN: process.env.POLYGLOT_ACCESS_TOKEN ?? '',
-  API_HOST_LIST: (process.env.API_HOST_LIST ?? '').split(','),
-  API_HOST_ROOT: `https://${(process.env.API_HOST_LIST ?? '').split(',')[0]}`,
+  API_HOST_LIST: (process.env.API_HOST_LIST ?? '')
+    .split(',')
+    .map((s: string) => s.trim())
+    .filter(Boolean),
+  API_HOST_ROOT: (() => {
+    const h = (process.env.API_HOST_LIST ?? '')
+      .split(',')
+      .map((s: string) => s.trim())
+      .filter(Boolean)[0];
+    return h ? `https://${h}` : '';
+  })(),
   BLUESKY_API_HOST_LIST: (process.env.BLUESKY_API_HOST_LIST ?? '')
     .split(',')
-    .map(s => s.trim())
+    .map((s: string) => s.trim())
     .filter(Boolean),
   BLUESKY_API_HOST_ROOT: (() => {
     const h = (process.env.BLUESKY_API_HOST_LIST ?? '')
       .split(',')
-      .map(s => s.trim())
+      .map((s: string) => s.trim())
       .filter(Boolean)[0];
     return h ? `https://${h}` : '';
   })(),
   ATMOSPHERE_API_HOST_LIST: (process.env.ATMOSPHERE_API_HOST_LIST ?? '')
     .split(',')
-    .map(s => s.trim())
+    .map((s: string) => s.trim())
     .filter(Boolean),
   ATMOSPHERE_API_HOST_ROOT: (() => {
     const h = (process.env.ATMOSPHERE_API_HOST_LIST ?? '')
       .split(',')
-      .map(s => s.trim())
+      .map((s: string) => s.trim())
       .filter(Boolean)[0];
     return h ? `https://${h}` : '';
   })(),
   RELEASE_NAME: process.env.RELEASE_NAME || 'local',
-  GIF_TRANSCODE_DOMAIN_LIST: (process.env.GIF_TRANSCODE_DOMAIN_LIST ?? '').split(','),
-  VIDEO_TRANSCODE_DOMAIN_LIST: (process.env.VIDEO_TRANSCODE_DOMAIN_LIST ?? '').split(','),
-  VIDEO_TRANSCODE_BSKY_DOMAIN_LIST: (process.env.VIDEO_TRANSCODE_BSKY_DOMAIN_LIST ?? '').split(','),
-  PBS_PROXY_DOMAIN_LIST: (process.env.PBS_PROXY_DOMAIN_LIST ?? '').split(','),
+  GIF_TRANSCODE_DOMAIN_LIST: (process.env.GIF_TRANSCODE_DOMAIN_LIST ?? '')
+    .split(',')
+    .map((s: string) => s.trim())
+    .filter(Boolean),
+  VIDEO_TRANSCODE_DOMAIN_LIST: (process.env.VIDEO_TRANSCODE_DOMAIN_LIST ?? '')
+    .split(',')
+    .map((s: string) => s.trim())
+    .filter(Boolean),
+  VIDEO_TRANSCODE_BSKY_DOMAIN_LIST: (process.env.VIDEO_TRANSCODE_BSKY_DOMAIN_LIST ?? '')
+    .split(',')
+    .map((s: string) => s.trim())
+    .filter(Boolean),
+  PBS_PROXY_DOMAIN_LIST: (process.env.PBS_PROXY_DOMAIN_LIST ?? '')
+    .split(',')
+    .map((s: string) => s.trim())
+    .filter(Boolean),
   API_DOCS_URL: `https://github.com/FxEmbed/FxEmbed/wiki/API-Home`,
   TWITTER_ROOT: process.env.TWITTER_ROOT || 'https://x.com',
   HORIZON_WEB_ROOT: 'https://app.fxtwitter.com',
