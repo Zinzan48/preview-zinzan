@@ -1,2 +1,8 @@
-# Auto detect text files and perform LF normalization
-* text=LF
+# Auto detect text files and perform LF normalization.
+#
+# 上游原本寫的是 `* text=LF`，那不是有效語法（git 只認 `text` / `text=auto`，
+# 換行由獨立的 `eol` 屬性決定），結果屬性等同未設定：在 core.autocrlf=true 的
+# Windows 上 checkout 會把整個工作目錄轉成 CRLF，讓 `npm run lint:eslint`
+# 噴出上萬個 prettier/prettier "Delete ␍"。index 內容一直都是 LF，壞的只有
+# 工作目錄，所以這行改掉不會動到任何檔案內容。
+* text=auto eol=lf

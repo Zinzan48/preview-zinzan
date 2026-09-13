@@ -16,3 +16,6 @@ credentials.enc.json
 # （用否定規則而非刪掉上面的行，是為了讓 upstream 改 .gitignore 時不衝突。）
 !wrangler.toml
 !branding.json
+
+# CodeGraph 的本機索引資料庫（十幾 MB，每台機器自己重建）
+.codegraph/
