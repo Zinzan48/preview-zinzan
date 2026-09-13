@@ -983,8 +983,7 @@ export const buildAPITwitterStatus = async (
   }
 
   /* If a language is specified in API or by user, let's try translating it! */
-  const normalizedTarget =
-    typeof language === 'string' ? normalizeLanguage(language) : '';
+  const normalizedTarget = typeof language === 'string' ? normalizeLanguage(language) : '';
   if (
     typeof language === 'string' &&
     (normalizedTarget.length === 2 || normalizedTarget.length === 5) && // ISO 639-1 or regional (e.g. zh-tw)
