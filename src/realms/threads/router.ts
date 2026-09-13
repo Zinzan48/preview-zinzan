@@ -14,6 +14,9 @@ threads.get('/:handle/post/:id', threadsPostRequest);
 threads.get('/:handle/post/:id/:language', threadsPostRequest);
 /* 不帶 handle 的簡短形式 */
 threads.get('/post/:id', threadsPostRequest);
+/* 分享用的短連結 /t/<code>。code 就是貼文 shortcode，所以直接沿用同一個 handler；
+   真人會被 302 回不含 handle 的固定連結，Threads 自己會補上正確的作者。 */
+threads.get('/t/:id', threadsPostRequest);
 
 threads.get('/version', c => versionRoute(c));
 

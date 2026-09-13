@@ -1,6 +1,6 @@
 import type { SocialThread } from '../../types/api-status.js';
 import { resolveThreadsAccounts, type ThreadsRequestContext } from './account-proxy.js';
-import { fetchThreadsPostPage, fetchThreadsSession } from './client.js';
+import { fetchThreadsPostPage, fetchThreadsSession, invalidateThreadsSession } from './client.js';
 import { fetchThreadsSingleThread } from './private-api.js';
 import { containingThreadChain } from './private-processor.js';
 import { buildThreadsTombstone, threadsPostToStatus } from './processor.js';
@@ -107,11 +107,23 @@ export async function constructThreadsPost(
     mediaId,
     sortOrder: 'TOP',
     after: null,
-    first: null,
+    /* 不要用 null（不限制）。這個查詢會連回覆一起帶回來，熱門貼文的回覆是數十萬則，
+       回應大到整個請求逾時 —— 實測 Threads 上線首日那則 @zuck/post/CuVYy5Fvrrd
+       會卡 16 秒後以「Request has timed out too many times」失敗，而 Threads 官方
+       對同一則吐得出完整 OG。嵌入頁只需要焦點貼文本身（下面取的是
+       edges[0].node.thread_items，那是作者自己的連續貼文，不是回覆），
+       所以回覆抓最少量就夠。
+
+       用 1 而不是 0：實測 first: 0 反而更慢（3.3~8.8 秒，對照 first: 1 的
+       1.5~1.7 秒），Meta 對 0 似乎有特殊處理或乾脆忽略了這個限制。 */
+    first: 1,
     session,
     userAgent
   });
   if (!res.ok || res.json == null) {
+    /* 查詢失敗有可能是快取的 session token 過期，丟掉它讓下一次重新建，
+       否則同一個 isolate 會一直拿著壞掉的 token 失敗到 TTL 到期。 */
+    invalidateThreadsSession();
     return { code: res.status === 404 ? 404 : 500, status: null, thread: null, author: null };
   }
 
