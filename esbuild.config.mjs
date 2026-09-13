@@ -100,11 +100,35 @@ try {
   defines['process.env.CREDENTIALS_IV'] = JSON.stringify(enc.iv);
 } catch (err) {
   if (err && typeof err === 'object' && err.code === 'ENOENT') {
-    console.warn(
-      'No credentials.enc.json found; encrypted credential bundle will be empty (local: npm run credentials:encrypt, CI: fetch from R2 before build).'
-    );
-    defines['process.env.ENCRYPTED_CREDENTIALS'] = JSON.stringify('');
-    defines['process.env.CREDENTIALS_IV'] = JSON.stringify('');
+    /* 沒有 credentials.enc.json 時改讀環境變數。
+       上游的 CI 是在 build 前從 R2 把這個檔拉下來；我們用 Cloudflare Workers Builds，
+       它從 git clone 原始碼來 build，而這個檔在 .gitignore 裡（而且這是 public repo，
+       就算是密文也不該進版控），所以改用 build secret 傳。
+       這裡收的是**已加密**的 ciphertext / iv，解密金鑰 CREDENTIAL_KEY 是 Worker 的
+       runtime secret，刻意不放進 build 環境 —— 兩者同時進 bundle 等於白加密。 */
+    const envCiphertext = (process.env.ENCRYPTED_CREDENTIALS ?? '').trim();
+    const envIv = (process.env.CREDENTIALS_IV ?? '').trim();
+
+    if (envCiphertext && envIv) {
+      console.log(
+        'No credentials.enc.json; using ENCRYPTED_CREDENTIALS / CREDENTIALS_IV from the environment.'
+      );
+      defines['process.env.ENCRYPTED_CREDENTIALS'] = JSON.stringify(envCiphertext);
+      defines['process.env.CREDENTIALS_IV'] = JSON.stringify(envIv);
+    } else {
+      if (envCiphertext || envIv) {
+        /* 只設一半是最容易犯又最難查的錯：bundle 會帶著半套憑證，
+           runtime 解密必定失敗，但外觀跟「完全沒設憑證」一模一樣。 */
+        console.warn(
+          'Only one of ENCRYPTED_CREDENTIALS / CREDENTIALS_IV is set; both are required. Ignoring both.'
+        );
+      }
+      console.warn(
+        'No credentials.enc.json found; encrypted credential bundle will be empty (local: npm run credentials:encrypt, CI: set ENCRYPTED_CREDENTIALS + CREDENTIALS_IV, or fetch from R2 before build).'
+      );
+      defines['process.env.ENCRYPTED_CREDENTIALS'] = JSON.stringify('');
+      defines['process.env.CREDENTIALS_IV'] = JSON.stringify('');
+    }
   } else {
     throw err;
   }
