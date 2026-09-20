@@ -176,3 +176,50 @@ describe('fetchFacebookPageMeta', () => {
     expect(meta.status).toBe(500);
   });
 });
+
+describe('fetchFacebookPageMeta redirects', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const redirect = (to: string) => new Response(null, { status: 302, headers: { Location: to } });
+
+  it('follows fb.watch across origins to www.facebook.com', async () => {
+    /* fb.watch/<code> 實測 302 到 https://www.facebook.com/watch/?v=<id>&… ——
+     **跨來源**。用同源限制的 fetch 會停在 302，症狀是「fb.watch 一律沒有預覽」。 */
+    const seen: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        seen.push(url);
+        if (url.startsWith('https://fb.watch/')) {
+          return redirect('https://www.facebook.com/watch/?v=662317629075955&ref=sharing');
+        }
+        return streamingResponse(page(reelHead), 4096);
+      })
+    );
+
+    const meta = await fetchFacebookPageMeta('https://fb.watch/lqvlrYbAdh/');
+
+    expect(seen).toEqual([
+      'https://fb.watch/lqvlrYbAdh/',
+      'https://www.facebook.com/watch/?v=662317629075955&ref=sharing'
+    ]);
+    expect(meta.ok).toBe(true);
+    expect(meta.video?.handle).toBe('MASTER.FOOD.DIARY');
+  });
+
+  it('refuses to follow a redirect off Facebook', async () => {
+    /* 只放寬到 Facebook 自己的 host，而不是整個改用 redirect: 'follow'。 */
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => redirect('https://example.com/somewhere-else'))
+    );
+
+    const meta = await fetchFacebookPageMeta('https://www.facebook.com/reel/1');
+
+    expect(meta.ok).toBe(false);
+    expect(meta.status).toBe(302);
+  });
+});

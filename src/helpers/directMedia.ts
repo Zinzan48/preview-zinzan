@@ -48,6 +48,13 @@ export const buildShortDirectMediaUrl = (
   try {
     const source = new URL(statusUrl);
     const selfHost = new URL(selfUrl).host;
+    /* 帶查詢字串就不適用：短網址只保留 pathname，`/watch/?v=<id>` 這種形狀的 id
+       會整個被丟掉，客戶端回來抓時解析到的是另一則（或整個 Watch 首頁）。
+       那是「預覽顯示了別支影片」那一類的錯 —— 比沒有播放器更糟。
+       實測目前三個 provider 的 canonical 都是純路徑，這是防止日後變動的保險。 */
+    if (source.search) {
+      return null;
+    }
     const path = source.pathname.replace(/\/+$/, '');
     if (!path) {
       return null;

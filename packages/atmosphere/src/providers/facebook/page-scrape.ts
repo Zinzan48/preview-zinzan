@@ -1,4 +1,3 @@
-import { fetchSameOriginHttps } from '../../helpers/same-origin-https-fetch.js';
 import { withTimeout } from '../../helpers/with-timeout.js';
 import {
   FACEBOOK_CRAWLER_USER_AGENT,
@@ -6,6 +5,7 @@ import {
   FACEBOOK_RETRIES
 } from './constants.js';
 import { decodeHtmlEntities } from './html.js';
+import { isFacebookRedirectHost } from './source-url.js';
 
 /*
  * 從 facebook.com 的頁面 HTML 取預覽需要的中繼資料。
@@ -29,12 +29,54 @@ const HEAD_END = '</head>';
  */
 const MAX_HEAD_BYTES = 512 * 1024;
 
+const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
+const MAX_REDIRECTS = 5;
+
+/**
+ * 跟隨轉址，但只跟到 Facebook 自己的 host。
+ *
+ * **不能用 `fetchSameOriginHttps`** —— `fb.watch/<code>` 是**跨來源**轉到
+ * `www.facebook.com/watch/?v=<id>`（實測 302），同源限制會讓它停在 302 直接判失敗，
+ * 而症狀是「fb.watch 的連結一律沒有預覽」。理由見 source-url.ts 的
+ * `isFacebookRedirectHost`。
+ */
+async function fetchFollowingFacebookRedirects(url: string, init: RequestInit): Promise<Response> {
+  const requestInit: RequestInit = { ...init, redirect: 'manual' };
+  let requestUrl = url;
+  let response = await fetch(requestUrl, requestInit);
+  for (let hop = 0; hop < MAX_REDIRECTS; hop++) {
+    if (!REDIRECT_STATUSES.has(response.status)) break;
+    const location = response.headers.get('Location');
+    if (!location) break;
+    let next: URL;
+    try {
+      next = new URL(location, requestUrl);
+    } catch {
+      break;
+    }
+    if (next.protocol !== 'https:' || !isFacebookRedirectHost(next.hostname)) {
+      console.error('[facebook] refusing redirect off Facebook', {
+        from: requestUrl,
+        to: next.href
+      });
+      break;
+    }
+    requestUrl = next.href;
+    response = await fetch(requestUrl, requestInit);
+  }
+  return response;
+}
+
 export type FacebookVideoTarget = {
   /** Facebook 自己認的影片永久連結，可直接餵給 `plugins/video.php?href=`。 */
   permalink: string;
   /** 作者的粉專 / 個人頁 handle，例如 `MASTER.FOOD.DIARY`。 */
   handle: string;
-  /** oEmbed link 的 `title` 屬性，例如 `算命的說我很愛吃 on Reels`。 */
+  /**
+   * oEmbed link 的 `title` 屬性。**不一定是作者名** —— 無標題的 reel 是
+   * `算命的說我很愛吃 on Reels`，有標題的影片則是「整段內文 | 阿翰po影片」。
+   * 作者永遠在最後一個 `|` 之後，交給 `authorNameFromOgTitle` 取。
+   */
   title: string | null;
 };
 
@@ -176,7 +218,7 @@ const parseHead = (head: string, status: number): FacebookPageMeta => {
 const fetchOnce = (url: string): Promise<FacebookPageMeta> =>
   withTimeout(
     async signal => {
-      const res = await fetchSameOriginHttps(url, {
+      const res = await fetchFollowingFacebookRedirects(url, {
         headers: {
           /* 一定要是爬蟲 UA —— 桌面瀏覽器 UA 實測回 400，不帶 UA 則沒有 og:image。
              詳細量測見 constants.ts。 */

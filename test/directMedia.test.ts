@@ -50,6 +50,35 @@ describe('buildShortDirectMediaUrl', () => {
     expect(url!.length).toBeLessThan(200);
   });
 
+  it('shortens a Facebook video URL even when the canonical carries a title slug', () => {
+    /* fb.watch 那一則的 canonical 把整個中文標題塞進路徑（211 字元）。
+       processor 會改用不含 slug 的 /<handle>/videos/<id>/，短網址因此是 84 而不是 234。 */
+    const url = buildShortDirectMediaUrl(
+      DataProvider.Facebook,
+      'https://www.facebook.com/hanhanpovideo/videos/662317629075955/',
+      'https://preview.zinzan.info/fb.watch/lqvlrYbAdh',
+      true
+    );
+
+    expect(url).toBe(
+      'https://preview.zinzan.info/www.facebook.com/hanhanpovideo/videos/662317629075955.mp4'
+    );
+    expect(url!.length).toBeLessThan(200);
+  });
+
+  it('refuses a source URL that carries a query string', () => {
+    /* 短網址只保留 pathname，`?v=<id>` 會被整個丟掉 —— 客戶端回來會解析到
+       別支影片或整個 Watch 首頁。顯示錯的影片比沒有播放器更糟，所以寧可退回 /2/go。 */
+    expect(
+      buildShortDirectMediaUrl(
+        DataProvider.Facebook,
+        'https://www.facebook.com/watch/?v=4484820285134652',
+        'https://preview.zinzan.info/www.facebook.com/watch',
+        true
+      )
+    ).toBeNull();
+  });
+
   it('leaves other providers alone', () => {
     /* X 的影片網址約 130 字元、沒有簽章，本來就播得動 —— 不需要多一次往返。
        Bluesky 與 TikTok 各自有既有的處理路徑。 */

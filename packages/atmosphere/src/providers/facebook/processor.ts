@@ -3,7 +3,7 @@ import type { APIStatus } from '../../types/api-status.js';
 import type { APIPhoto, APIUser, APIVideo, APIVideoFormat } from '../../types/api-schemas.js';
 import { FACEBOOK_ORIGIN } from './constants.js';
 import type { FacebookVideoSource, FacebookVideoSources } from './embed-scrape.js';
-import { authorNameFromPageTitle } from './html.js';
+import { authorNameFromOgTitle } from './html.js';
 import type { FacebookPageMeta } from './page-scrape.js';
 
 /** Telegram 不會替超過 20 MiB 的影片產生播放器，只畫縮圖。 */
@@ -80,11 +80,19 @@ const descriptionFrom = (meta: FacebookPageMeta): string => {
 
 const buildAuthor = (meta: FacebookPageMeta): APIUser => {
   const handle = meta.video?.handle ?? handleFromCanonical(meta.canonicalUrl) ?? '';
-  /* 最後那一段要用 `||` 而不是 `??` —— handle 取不到時是空字串而不是 null，
+  /* 兩個來源都要走 authorNameFromOgTitle（取最後一個 `|` 之後那段），**不能**
+     假設 oEmbed 的 title 屬性就是作者名 —— 有標題的影片它是「整段內文 | 作者」
+     （實測 fb.watch/lqvlrYbAdh 的 title 屬性是一大段貼文內文，結尾才是 `阿翰po影片`）。
+     Facebook 一律把作者放在最後一段，所以連內文自己含 `|` 也不會解錯。
+
+     刻意**不**退到 `<title>`：一般貼文的 `<title>` 是「作者 - 整篇內文」，
+     拿它當作者名會讓 og:title 變成一大段貼文內容（實測 /share/19h74gRbKu/）。
+
+     最後那一段要用 `||` 而不是 `??` —— handle 取不到時是空字串而不是 null，
      串成 `handle ?? 'Facebook'` 的話保底永遠不會生效，會吐出作者名為空的卡片。 */
   const name =
-    authorNameFromPageTitle(meta.video?.title ?? null) ??
-    authorNameFromPageTitle(meta.pageTitle) ??
+    authorNameFromOgTitle(meta.video?.title ?? null) ??
+    authorNameFromOgTitle(meta.ogTitle) ??
     (handle || 'Facebook');
 
   return {
@@ -151,6 +159,27 @@ const buildPhoto = (imageUrl: string): APIPhoto => ({
 });
 
 /**
+ * 影片的 `status.url`：canonical 與「不含標題 slug 的永久連結」取短的那個。
+ *
+ * 為什麼要挑：`status.url` 是 direct-media 短網址的組成來源，而 Facebook 的 canonical
+ * 會把整個標題塞進路徑 —— 實測 `fb.watch/lqvlrYbAdh` 那則的 canonical 是 211 字元，
+ * 短網址因此變成 234。不含 slug 的 `/<handle>/videos/<id>/` 實測同樣回 200、同樣帶
+ * oEmbed，短網址只剩 84。
+ *
+ * og:video 過長時 Telegram 會安靜地只畫縮圖（1150 字元確認失效，130 字元確認正常）。
+ * 234 離失效點還很遠，但**這條路沒有任何訊號可以偵測**，能短就短。
+ */
+const preferShortVideoUrl = (
+  canonicalUrl: string,
+  handle: string,
+  videoId: string | null
+): string => {
+  if (!handle || !videoId) return canonicalUrl;
+  const slugFree = `${FACEBOOK_ORIGIN}/${encodeURIComponent(handle)}/videos/${videoId}/`;
+  return slugFree.length < canonicalUrl.length ? slugFree : canonicalUrl;
+};
+
+/**
  * 把抓到的中繼資料組成通用的 `APIStatus`。
  *
  * 刻意不做 provider 專屬的 Zod schema：這個 fork 只用 embed realm，不開
@@ -163,8 +192,10 @@ export const facebookPageToStatus = (
   meta: FacebookPageMeta,
   video: FacebookVideoPayload | null
 ): APIStatus | null => {
-  const url = meta.canonicalUrl;
-  if (!url) return null;
+  if (!meta.canonicalUrl) return null;
+  const url = video
+    ? preferShortVideoUrl(meta.canonicalUrl, meta.video?.handle ?? '', video.sources.videoId)
+    : meta.canonicalUrl;
 
   const author = buildAuthor(meta);
   const text = descriptionFrom(meta);

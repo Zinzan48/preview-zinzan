@@ -104,6 +104,41 @@ describe('facebookPageToStatus', () => {
     expect(video.formats.map(f => f.url)).toEqual([HD, SD]);
   });
 
+  it('reads the author from the end of the oEmbed title, not the whole of it', () => {
+    /* 實測 fb.watch/lqvlrYbAdh：oEmbed 的 title 屬性是整段貼文內文，
+       結尾才是作者。假設它就是作者名會讓卡片標題變成一大段內文。 */
+    const status = facebookPageToStatus(
+      meta({
+        canonicalUrl:
+          'https://www.facebook.com/hanhanpovideo/videos/%E7%AE%97%E5%91%BD/662317629075955/',
+        ogTitle: '156 萬次觀看 · 8 萬個心情 | 算命阿姨 中西合壁之四手聯彈 | 阿翰po影片',
+        ogDescription: '算命阿姨 中西合壁之四手聯彈',
+        video: {
+          permalink: 'https://www.facebook.com/hanhanpovideo/videos/662317629075955/',
+          handle: 'hanhanpovideo',
+          title: '算命阿姨 中西合壁之四手聯彈 | 阿翰po影片'
+        }
+      }),
+      { sources: sources({ videoId: '662317629075955' }), bytes: null, chosen: sources().hd! }
+    );
+
+    expect(status!.author.name).toBe('阿翰po影片');
+    expect(status!.author.screen_name).toBe('hanhanpovideo');
+    /* canonical 帶著標題 slug 時改用不含 slug 的永久連結，
+       否則 direct-media 短網址會從 84 字元漲到 234。 */
+    expect(status!.url).toBe('https://www.facebook.com/hanhanpovideo/videos/662317629075955/');
+  });
+
+  it('keeps the canonical when it is already shorter than the slug-free form', () => {
+    const status = facebookPageToStatus(meta(), {
+      sources: sources(),
+      bytes: null,
+      chosen: sources().hd!
+    });
+
+    expect(status!.url).toBe('https://www.facebook.com/reel/4484820285134652/');
+  });
+
   it('never writes the string "null" into the thumbnail', () => {
     /* Threads 踩過這個：og:image 被寫成字串 "null"。
        LINE 的連結預覽只讀 og:image，寫錯等於整張圖消失。 */
@@ -140,13 +175,35 @@ describe('facebookPageToStatus', () => {
 
   it('does not mistake a Facebook surface path for a handle', () => {
     const status = facebookPageToStatus(
-      meta({ video: null, pageTitle: null, ogTitle: 'x | y' }),
+      meta({ video: null, pageTitle: null, ogTitle: null }),
       null
     );
 
     /* canonical 是 /reel/<id>/ —— `reel` 不是誰的 handle。 */
     expect(status!.author.screen_name).toBe('');
     expect(status!.author.name).toBe('Facebook');
+  });
+
+  it('takes the author name from og:title on a plain post, not from <title>', () => {
+    /* 實測 /share/19h74gRbKu/：og:title 就是粉專名稱，而 <title> 是
+       「粉專名稱 - 整篇貼文內文」。用錯來源會讓卡片標題變成一大段內文。 */
+    const status = facebookPageToStatus(
+      meta({
+        video: null,
+        canonicalUrl: 'https://www.facebook.com/beastoriatw/posts/%E9%87%8E/122118755637401144/',
+        ogTitle: '野狼祭 Beastoria',
+        ogDescription: '【野狼祭 Beastoria｜工作人員招募】 🐺 一起成為打造野狼祭的一員吧！',
+        pageTitle:
+          '野狼祭 Beastoria - 【野狼祭 Beastoria｜工作人員招募】 🐺 一起成為打造野狼祭的一員吧！',
+        ogImage: 'https://lookaside.fbsbx.com/lookaside/crawler/media/?media_id=122118784869401144'
+      }),
+      null
+    );
+
+    expect(status!.author.name).toBe('野狼祭 Beastoria');
+    expect(status!.author.screen_name).toBe('beastoriatw');
+    expect(status!.embed_card).toBe('summary_large_image');
+    expect(status!.text).toContain('工作人員招募');
   });
 
   it('falls back to the engagement half of og:title when there is no description', () => {

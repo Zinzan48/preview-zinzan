@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  authorNameFromOgTitle,
   authorNameFromPageTitle,
   decodeHtmlEntities
 } from '@fxembed/atmosphere/providers/facebook/html';
@@ -53,10 +54,55 @@ describe('authorNameFromPageTitle', () => {
     expect(authorNameFromPageTitle('Facebook')).toBe('Facebook');
   });
 
+  it('strips the "Reel by" prefix that share pages use', () => {
+    /* 實測 /share/r/<code> 的 og:title 是 `38 萬次觀看 | Reel by 算命的說我很愛吃`。 */
+    expect(authorNameFromPageTitle('Reel by 算命的說我很愛吃')).toBe('算命的說我很愛吃');
+    expect(authorNameFromPageTitle('Video by Some Page')).toBe('Some Page');
+  });
+
   it('returns null when there is nothing left, so the caller can look elsewhere', () => {
     /* 半截字串比 null 糟：呼叫端會以為拿到了作者名而不再往下找。 */
     expect(authorNameFromPageTitle(' on Reels')).toBeNull();
     expect(authorNameFromPageTitle('')).toBeNull();
     expect(authorNameFromPageTitle(null)).toBeNull();
+  });
+});
+
+describe('authorNameFromOgTitle', () => {
+  /*
+   * og:title 的形狀依 surface 而異，這四種全部是 2026-09-20 實測到的原文。
+   * 這裡是整個作者名解析的核心 —— 挑錯段落會讓 og:title 變成一大段貼文內容。
+   */
+  it('takes the segment after the last pipe on a reel page', () => {
+    expect(authorNameFromOgTitle('8.4 萬次觀看 · 1,345 個心情 | 算命的說我很愛吃 on Reels')).toBe(
+      '算命的說我很愛吃'
+    );
+  });
+
+  it('handles the share page shape, which says "Reel by"', () => {
+    expect(authorNameFromOgTitle('38 萬次觀看 | Reel by 算命的說我很愛吃')).toBe(
+      '算命的說我很愛吃'
+    );
+  });
+
+  it('takes the author from the end when the video has its own title', () => {
+    /* 實測 fb.watch/lqvlrYbAdh：oEmbed 的 title 屬性與 og:title 都是
+       「整段貼文內文 | 作者」，作者在最後。內文自己含 `|` 也不會解錯，
+       因為 Facebook 一律把作者放在最後一段。 */
+    expect(
+      authorNameFromOgTitle('156 萬次觀看 · 8 萬個心情 | 算命阿姨 中西合壁 | 阿翰po影片')
+    ).toBe('阿翰po影片');
+    expect(authorNameFromOgTitle('標題裡有 | 管線符號 | 真正的作者')).toBe('真正的作者');
+  });
+
+  it('takes a plain post title whole, because that IS the author', () => {
+    /* 一般貼文的 og:title 就是粉專名稱，沒有互動數也沒有分隔線。 */
+    expect(authorNameFromOgTitle('野狼祭 Beastoria')).toBe('野狼祭 Beastoria');
+    expect(authorNameFromOgTitle('Facebook')).toBe('Facebook');
+  });
+
+  it('returns null on nothing usable', () => {
+    expect(authorNameFromOgTitle(null)).toBeNull();
+    expect(authorNameFromOgTitle('   ')).toBeNull();
   });
 });

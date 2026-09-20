@@ -72,6 +72,17 @@ export const facebookPostRequest = async (c: Context) => {
     );
 
     if (statusResponse) {
+      /* 解析不出東西時**不要**吐「貼文不存在」的錯誤卡，連爬蟲也一樣 ——
+         那比沒有這個服務更糟：我們等於主動宣稱貼文不存在，而實際上只是 Facebook
+         對這個形狀不給資料（實測 `/photo?fbid=<id>` 回 200 但零個 og:*）。
+         照這個 fork 的原則退回原站，讓爬蟲去拿 Facebook 自己給的東西。
+
+         健康探測也因此更明確：服務壞掉時探測會看到跨 host 轉址而判失敗，
+         而不是收到一個 200、含 branding og:title 的假成功頁。 */
+      if (statusResponse.headers.get(Constants.EMBED_ERROR_HEADER)) {
+        console.log('No previewable media, falling back to the origin', facebookUrl);
+        return c.redirect(facebookUrl, 302);
+      }
       /* 要了 direct media 但這一則根本沒有媒體時，真人就直接送回原站；
          爬蟲照樣拿到一般的嵌入資訊。 */
       if (!isBotUA && !flags.api && !flags.direct) {

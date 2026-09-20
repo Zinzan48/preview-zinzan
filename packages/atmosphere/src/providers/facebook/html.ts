@@ -50,5 +50,29 @@ export const authorNameFromPageTitle = (title: string | null): string | null => 
   const withoutSurface = withoutSite
     .replace(/(^|\s+)on\s+(Facebook Watch|Reels|Facebook)\s*$/i, '')
     .trim();
-  return withoutSurface || null;
+  /* `Reel by <作者>` / `Video by <作者>` 是分享頁的形狀，前綴也要剝。 */
+  return withoutSurface.replace(/^(Reel|Video|Post)\s+by\s+/i, '').trim() || null;
+};
+
+/**
+ * 從 `og:title` 取作者名。**它的形狀依 surface 而異，全部都是實測**：
+ *
+ * | surface | og:title |
+ * | --- | --- |
+ * | reel 貼文頁 | `8.4 萬次觀看 · 1,345 個心情 \| 算命的說我很愛吃 on Reels` |
+ * | reel 分享頁 | `38 萬次觀看 \| Reel by 算命的說我很愛吃` |
+ * | 一般貼文 | `野狼祭 Beastoria` ← 本身就是作者名 |
+ * | 粉專首頁 | `Facebook` ← 同上 |
+ *
+ * 所以規則是：有 `|` 就取**最後一段**（前半是互動數），沒有就整個拿，
+ * 再剝掉 `on Reels` / `Reel by` 這類裝飾。
+ *
+ * 用 `<title>` 做不到這件事 —— 一般貼文的 `<title>` 是「作者 - 整篇內文」，
+ * 直接拿會讓 og:title 變成一大段貼文內容。
+ */
+export const authorNameFromOgTitle = (ogTitle: string | null): string | null => {
+  if (!ogTitle) return null;
+  const separator = ogTitle.lastIndexOf('|');
+  const tail = separator >= 0 ? ogTitle.slice(separator + 1) : ogTitle;
+  return authorNameFromPageTitle(tail.trim());
 };

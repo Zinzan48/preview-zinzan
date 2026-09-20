@@ -33,6 +33,21 @@ export const isFacebookSourceHost = (sourceHost: string): boolean => {
 };
 
 /**
+ * 轉址可以跟到哪些 host。
+ *
+ * **`fb.watch` 的短連結是跨來源轉址**（實測 302 到
+ * `https://www.facebook.com/watch/?v=<id>&…`），所以不能用 `fetchSameOriginHttps`
+ * —— 那支只跟同源，遇到 fb.watch 會停在 302 直接判失敗。
+ *
+ * 同源限制的用意是「不要把 session cookie 帶到別的 host」，而我們對 Facebook
+ * 一個 cookie 都不帶，所以改成用 host 白名單擋住「被導去無關站台」就夠了。
+ */
+export const isFacebookRedirectHost = (host: string): boolean => {
+  const h = host.toLowerCase();
+  return h === 'fb.watch' || h === 'facebook.com' || h.endsWith('.facebook.com');
+};
+
+/**
  * 組出要抓的上游網址。`path` 是已經剝掉來源網域前綴（也剝掉 direct-media 副檔名）
  * 的那一段，`search` 是原始查詢字串 —— `/watch/?v=<id>` 這種形狀的 id 在查詢字串裡，
  * 丟掉就會變成抓 Watch 首頁。
