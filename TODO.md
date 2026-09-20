@@ -64,16 +64,37 @@
   `https://www.instagram.com/api/v1/web/accounts/edit/web_form_data/`。
   回 JSON＝session 還活著；回 HTML 且含 `class="... not-logged-in"`＝已失效。
   比看 `current_user`（失效與被風控都回同一句 `status: fail`）明確得多。
-- **Threads 線上目前 0%，兩條路同時斷**（2026-09-13 實測 9/9 失敗）。
-  診斷已經到位（`CHANGELOG.md` 有完整 log），剩下的是一個**營運動作**：
+- **Threads 線上是時好時壞，不是 0%**（2026-09-20 於正式站實測 **5/8**）。
 
-  1. 私有 API：IG session 已失效 → **重新擷取憑證**（skill `social-account-credentials`）。
-  2. logged-out GraphQL：Meta 對 Cloudflare 出口 IP 限流，回 401
-     `Please wait a few minutes before you try again`＋`require_login: true`。
-     這條**沒有辦法從我們這側解決**，本機走家用 IP 不會碰到。
+  這一條原本寫「0%，兩條路同時斷，可用性完全押在憑證上」（2026-09-13 實測 9/9 失敗）。
+  **那個數字是被一則死掉的樣本貼文造成的。** 當時固定用的 `/t/DdNwfAwiZcO` 現在已經
+  不存在 —— 用 bingbot 與 Googlebot 抓都只拿到 277 KB 空殼、零個 `thread_items`、
+  連 `og:title` 都沒有。而**服務正常但樣本死掉**，症狀與**服務壞掉**一模一樣。
 
-  也就是說 Threads 的可用性完全押在憑證上。憑證補好後重跑一次 9 次驗收再決定。
-  **在那之前 Threads 不能寫進 `TBDOMAINREWRITE`**：探測會一直紅，或時通時斷讓規則震盪。
+  2026-09-20 改用 `@zuck` 頁面上挖出來的四則活貼文，對正式站各打 2 次：
+
+  | 貼文 code     | 結果 |
+  | ------------- | ---- |
+  | `DdU1-6okapE` | 2/2  |
+  | `DdU1-7_kb4B` | 2/2  |
+  | `DdZ7sQvkTFn` | 1/2  |
+  | `DdU1-7tEf-q` | 0/2  |
+
+  成功時回的是正確的 `Mark Zuckerberg (@zuck)`，不是 branding 名稱。
+
+  **操作結論不變，理由變了**：仍然**不要**把 Threads 寫進 `TBDOMAINREWRITE` ——
+  但不是因為「完全不能用」，而是因為**時好時壞會讓規則震盪**，這正是本檔原本就
+  警告過的那個失敗模式。要啟用的話得先把成功率量到穩定。
+
+  還沒查清楚的：同一時間從家用 IP 直抓 `/t/<code>` 的頁面，`thread_items` 是 **0**
+  （而 `/@zuck` profile 頁是 15），所以線上成功的那幾次**不是走 page-scrape**。
+  最可能是私有 API（憑證）那條 —— 若屬實，「IG session 已失效」這個舊診斷也不成立了。
+  這點沒有實證，要下結論前得先看線上 log。
+
+  > **教訓：固定樣本會死，而死掉的樣本看起來就像服務壞掉。** `CLAUDE.md` §5 已經有
+  > 「挑不會消失的樣本」這條規則（X 用 `jack/status/20`、Instagram 用史上第一則貼文），
+  > Threads 這組當初沒照著做。重新量測前先確認樣本本身還活著 ——
+  > 用爬蟲 UA 抓原站，看有沒有 `og:title` 與 `thread_items`。
 
 - **跟上游同步**：`git fetch upstream && git merge upstream/main` 之後，
   務必複查 `CHANGELOG.md` 列的六個上游缺陷修正還在不在。
