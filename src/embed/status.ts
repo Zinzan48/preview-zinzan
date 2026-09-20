@@ -29,6 +29,8 @@ import { getVideoTranscodeDomain, getVideoTranscodeDomainBluesky } from '../help
 import { constructTikTokVideo } from '@fxembed/atmosphere/providers/tiktok/conversation';
 import { constructInstagramPost } from '@fxembed/atmosphere/providers/instagram/post';
 import { constructThreadsPost } from '@fxembed/atmosphere/providers/threads/post';
+import { constructFacebookPost } from '@fxembed/atmosphere/providers/facebook/post';
+import { sourceHostFromPath } from '../helpers/pathRouting';
 import { InputFlags } from '../types/types';
 import { formatRuntime } from '../helpers/runtime';
 
@@ -74,7 +76,8 @@ const PROVIDER_SITE_NAMES: Record<DataProvider, string> = {
   [DataProvider.Instagram]: 'Instagram',
   [DataProvider.TikTok]: 'TikTok',
   [DataProvider.Mastodon]: 'Mastodon',
-  [DataProvider.Threads]: 'Threads'
+  [DataProvider.Threads]: 'Threads',
+  [DataProvider.Facebook]: 'Facebook'
 };
 
 export const returnError = (c: Context, error: string): Response => {
@@ -192,6 +195,17 @@ export const handleStatus = async (
       userAgent,
       credentialKey: c.env?.CREDENTIAL_KEY
     })) as SocialThread;
+  } else if (provider === DataProvider.Facebook) {
+    /* Facebook 沒有 shortcode 這種東西，statusId 收的是已經剝掉來源網域前綴與
+       direct-media 副檔名的路徑。來源 host 與查詢字串（/watch/?v=<id> 的 id 在
+       查詢字串裡）要從原始請求還原 —— getPath 只影響路由比對，c.req.url 仍然是
+       使用者貼進來的那一個。 */
+    const facebookRequestUrl = new URL(c.req.url);
+    thread = (await constructFacebookPost(
+      sourceHostFromPath(facebookRequestUrl.pathname) ?? 'www.facebook.com',
+      statusId,
+      facebookRequestUrl.search
+    )) as SocialThread;
   } else {
     return returnError(c, Strings.ERROR_API_FAIL);
   }

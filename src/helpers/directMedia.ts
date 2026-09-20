@@ -12,11 +12,16 @@ import { DataProvider } from '../enum';
  * | X | 約 130 字元、無簽章 | 正常播放 |
  * | Instagram reel | 1162 | 只有縮圖 |
  * | Threads 影片 | 1154 | 只有縮圖 |
+ * | Facebook reel | 約 1150（直連本身 702 字元、13 個簽章參數） | 只有縮圖 |
  *
  * 其他可能原因都已排除：meta 格式、302 中轉本身、影片編碼（H.264 + faststart）、
  * 檔案大小、網址時效、來源 IP 限制。同一則 reel 在上游 `67instagram.com` 也一樣不播。
  */
-const SHORT_DIRECT_MEDIA_PROVIDERS: DataProvider[] = [DataProvider.Instagram, DataProvider.Threads];
+const SHORT_DIRECT_MEDIA_PROVIDERS: DataProvider[] = [
+  DataProvider.Instagram,
+  DataProvider.Threads,
+  DataProvider.Facebook
+];
 
 /**
  * 組出指向我們自己 direct-media 路徑的短網址（實測 66–73 字元）。

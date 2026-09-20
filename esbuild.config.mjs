@@ -63,6 +63,7 @@ let envVariables = [
   'OLD_EMBED_DOMAINS',
   'TWITTER_ROOT',
   'THREADS_ROOT',
+  'FACEBOOK_ROOT',
   'INSTAGRAM_ROOT',
   'INSTAGRAM_API_ROOT'
 ];

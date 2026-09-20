@@ -82,6 +82,10 @@
       "types": "./dist/providers/threads/*.d.ts",
       "import": "./dist/providers/threads/*.js"
     },
+    "./providers/facebook/*": {
+      "types": "./dist/providers/facebook/*.d.ts",
+      "import": "./dist/providers/facebook/*.js"
+    },
     "./providers/twitter-runtime": {
       "types": "./dist/providers/twitter-runtime.d.ts",
       "import": "./dist/providers/twitter-runtime.js"
