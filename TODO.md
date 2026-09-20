@@ -24,17 +24,23 @@
   64 個 `video_versions`，而 curl 抓的靜態 HTML 是 0 —— 這個對比直接證明了
   「資料拿得到」，省下往逆向 token 流程鑽的時間。
 
-### Facebook
+### ~~Facebook~~ — 已完成（2026-09-20）
 
-**上游完全沒有**，`packages/atmosphere/src/providers/` 底下沒有 facebook 目錄。
+預覽與影片都可用，見 `CHANGELOG.md`。這裡只留下對下一個平台有參考價值的部分：
 
-要做的事比 Threads 大得多：整個 provider（資料取得、解析、型別）都要自己寫。
-動工前先評估可行性 —— Facebook 的公開貼文對未登入者的限制比 Instagram 更嚴，
-而且 Meta 對這類取用的封鎖很積極（`ddinstagram.com` 與 `fixthreads.net` 的下場
-見 `PREVIEW_SERVICE_BRIEF.md` 第 6 節）。
-
-建議先做一次實測再決定：拿幾則公開的 Facebook 貼文，確認未登入狀態下
-拿不拿得到 og:image / 影片直連。拿不到就不值得投入。
+- **UA 選擇不能跨平台沿用。** Threads 與 Facebook 同屬 Meta、同樣「只有爬蟲
+  拿得到資料」，但最佳 UA 完全相反：Threads 選 bingbot 因為它最快，Facebook 的
+  bingbot 最慢（3.07s vs `facebookexternalhit` 的 1.54s）也最肥。而且 Facebook 對
+  桌面瀏覽器 UA 是**直接回 400**，不是給空殼頁。每個平台都要自己量一次。
+- **不要用 `og:type` 判斷「這則是不是影片」。** Facebook 連粉專首頁的 `og:type`
+  都是 `video.other`。要找一個「只有該型態才會出現」的訊號 —— 這次是
+  `<head>` 裡的 oEmbed alternate link，而且它順帶把作者 handle 與永久連結一起給了。
+- **先量出口 IP 再寫 provider。** `wrangler dev --remote` 會把程式碼跑在 Cloudflare
+  基礎設施上，所以出口 IP 就是正式環境的。兩個端點各 20 次、半小時內就能知道
+  這件事值不值得做 —— 比寫完整個 provider 才發現線上只有 25% 便宜太多。
+- **只有一條取數路徑時要重試。** Threads 有三條 fallback 所以可以不重試；
+  單一路徑的 provider 一次暫時性網路錯誤就是一張壞卡片，**而 Telegram 會把它
+  快取很久**。注意 `withTimeout` 的 retries 只認 `AbortError`，擋不住網路層錯誤。
 
 ---
 

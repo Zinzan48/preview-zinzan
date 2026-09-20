@@ -149,6 +149,11 @@ token，所以會拿到 200 + OG meta。**UA 不可為空**（空 UA 會被判�
    Bluesky 的 profile-only 路徑（`/bsky.app/profile/bsky.app`）一律 302 跨 host，
    會直接觸發「被導去非預期 host」的失敗判定。樣本一律用貼文。
 3. Instagram 是 best-effort（Meta 持續封鎖），建議規則先不啟用。
+4. **Facebook 尚未列入表中。** provider 已完成且本機驗收全過，出口 IP 也在
+   `wrangler dev --remote` 實測 20/20，但**還沒有線上驗收**。照 Threads 的教訓，
+   在正式網域連續量到穩定成功率之前不要寫進 `TBDOMAINREWRITE` —— 探測會一直紅、
+   或時通時斷讓規則震盪。屆時的樣本用貼文、期望字串用作者字串（規則 1、2 照舊），
+   並換成一則可控、不會被刪的公開貼文。
 
 ---
 

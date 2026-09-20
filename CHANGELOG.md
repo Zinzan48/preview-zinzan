@@ -3,9 +3,121 @@
 這個 fork 與上游 [`FxEmbed/FxEmbed`](https://github.com/FxEmbed/FxEmbed) 的**全部**差異。
 
 - **Fork 基準**：upstream `main` @ `5b5b6207`（2026-09-13）
-- **範圍**：22 個檔案、+323 / −68 行
+- **範圍**：60 個檔案、+4280 / −112 行
 - 操作面的說明（設定雷、驗收指令、部署參數）在 [`CLAUDE.md`](./CLAUDE.md)；
   這裡只記錄「改了什麼、為什麼、不改會怎樣」。
+
+---
+
+## [2026-09-20] Facebook 支援
+
+### Added
+
+**Facebook embed realm + provider**（`src/realms/facebook/`、
+`packages/atmosphere/src/providers/facebook/`）。上游完全沒有 Facebook provider，
+整套是自己寫的；但取數方式比 `TODO.md` 原本預期的簡單得多。
+
+`TODO.md` 要求動工前先做可行性實測，理由是「Facebook 的公開貼文對未登入者的限制
+比 Instagram 更嚴」。就預覽需要的東西而言**並沒有**：帶爬蟲 UA、未登入，
+`<head>` 裡就有真實的 `og:title`、`og:image` 與正規網址。
+
+#### UA 決定一切，而且結論與 Threads 相反
+
+同一則 reel、家用 IP：
+
+| UA | HTTP | 回應大小 | 耗時 |
+| --- | --- | --- | --- |
+| `facebookexternalhit/1.1` | 200 | 451 KB | 1.54s |
+| `TelegramBot` | 200 | 442 KB | 1.53s |
+| `Googlebot/2.1` | 200 | 878 KB | 1.71s |
+| `bingbot/2.0` | 200 | 894 KB | 3.07s |
+| Chrome 131（桌面瀏覽器） | **400** | — | — |
+| 不帶 UA | 200 | 50 KB（**沒有 og:image**） | — |
+
+Threads 選 bingbot 是因為在那邊它最快；Facebook 剛好相反，它最慢也最肥。
+而且 Threads 的瀏覽器 UA 只是拿到空殼頁，Facebook 是**直接回 400** ——
+爬蟲那條路不是最佳化，是唯一走得通的路。
+
+> **UA 選擇不能跨平台沿用。** 兩個平台同屬 Meta、同樣「只有爬蟲拿得到資料」，
+> 但最佳 UA 完全不同。加新平台時要自己量。
+
+#### 出口 IP 先驗過才動工
+
+Threads 的教訓是 logged-out GraphQL 從 Cloudflare 出口只有 20–25% 成功。
+所以寫任何 provider 之前，先用 `wrangler dev --remote`（程式碼實際跑在 Cloudflare
+基礎設施上）對兩個端點各打 20 次：
+
+| 端點 | 成功率 | 耗時中位數 | 最大 | 平均大小 |
+| --- | --- | --- | --- | --- |
+| 貼文頁 | **20/20** | 929ms | 2423ms | 863 KB |
+| `plugins/video.php` | **20/20** | 154ms | 234ms | 191 KB |
+
+colo 是 SJC，沒有出現任何登入牆。
+
+#### 取數要兩段，因為資料就分在兩個地方
+
+**貼文頁裡一個影片直連都沒有** —— `mp4`、`video_versions`、`playable_url`、
+`dash_manifest` 在 451 KB 的 HTML 裡全部是 **0 次**。影片在公開的
+`plugins/video.php` 嵌入端點，未登入就給 `hd_src`（8.98 MB）與 `sd_src`（2.08 MB），
+實測 `206 Partial Content` + `video/mp4` + `Accept-Ranges: bytes`。
+
+**它的 `href` 必須是正規永久連結。** 餵分享短連結（`/share/r/<code>`）會回 **200
+但 `hd_src` 出現 0 次** —— 又一個不報錯的靜默失敗。永久連結從貼文頁 `<head>` 的
+oEmbed alternate link 拿：
+
+```html
+<link rel="alternate" href="https://graph.facebook.com/v26.0/oembed_video?url=…%2FMASTER.FOOD.DIARY%2Fvideos%2F4484820285134652%2F" title="算命的說我很愛吃 on Reels" />
+```
+
+它落在文件 2% 處，一次就同時給了**永久連結、作者 handle、作者顯示名稱**。
+
+#### `og:type` 不能拿來判斷「是不是影片」
+
+`facebook.com/facebook`（粉專首頁，根本不是貼文）的 `og:type` 也是 `video.other`。
+拿它當條件會對每個非影片網址都白打一次 embed 端點。**正確的訊號是上面那個
+oEmbed link** —— 它只在真的有影片時出現。
+
+#### realm 是 catch-all，不是具名路由
+
+`/reel/<id>`、`/watch/?v=<id>`、`/<page>/videos/<id>`、`/share/r|v|p/<code>`、
+`/<page>/posts/<id>`、粉專首頁 —— 取數方式全都一樣（讀那一頁的 `<head>`）。
+維護一份具名路由清單只會漏，而漏掉的那一種會安靜地 302 掉。解析不出媒體時
+才退回原站。
+
+#### 同一個坑的第三次：`og:video` 長度
+
+Facebook 的 CDN 網址與 Instagram / Threads 同形狀（**702 字元、13 個簽章參數**），
+所以 `DataProvider.Facebook` 在**同一個 commit** 就加進
+`src/helpers/directMedia.ts` 的 `SHORT_DIRECT_MEDIA_PROVIDERS`，不留到之後。
+結果是 **70 字元**。
+
+### Changed
+
+**與 Threads provider 的兩個刻意差異：**
+
+1. **貼文頁在丟例外時重試一次。** Threads 有三條 fallback（私有 API → GraphQL →
+   頁面），Facebook 只有一條，一次暫時性網路錯誤就直接變成「貼文不存在」的卡片，
+   **而 Telegram 會把預覽結果快取很久**。本機實測確實遇過：worker 起來後第一個
+   請求回 `Network connection lost.`，之後同一個網址 3/3 正常。
+   注意 `withTimeout` 自己的 retries 幫不上忙，它只認 `AbortError`。
+2. **影片大小用 HEAD 問，不用估的。** Facebook 沒有任何時長或大小欄位
+   （progressive 串流的 `dash_manifest` 是 `null`），Instagram 那套「用時長乘位元率估」
+   沒有輸入可用。HEAD 回來的 `Content-Length` 同時也讓我們能用網址查詢字串裡的
+   `bitrate` 反推長度 —— hd 與 sd 各自算出來都是 23.3 秒，互相印證。
+
+**不做 atmosphere JSON API、不做 provider 專屬 Zod schema。** 這個 fork 只用
+embed realm，而 `APIStatus.provider` 本來就是通用的 `DataProvider`。Facebook 能
+取得的欄位也遠少於 Threads（沒有按讚數、留言數、內文），JSON API 的價值不成比例。
+取不到的欄位一律留 0 / epoch，不硬湊看起來合理的值。
+
+### 已知限制
+
+- **相片貼文與純文字貼文沒有實測樣本。** 通用解析路徑會對它們產生
+  `og:title` + `og:image` 的卡片（粉專首頁已實測可用），但沒有拿真實的相片貼文
+  驗過。失敗時會退回 302 原站，不會吐壞卡片。
+- **`fb.watch` 短連結沒有實測樣本。** 程式上照原 host 抓（它的 code 是獨立命名
+  空間，接到 `www` 上解析不出來），機制與 `/share/r/` 相同，但沒有驗過。
+- **私人／受限貼文**未登入拿不到，預期退回 302 原站。
 
 ---
 
