@@ -52,8 +52,22 @@ const handleFromCanonical = (canonicalUrl: string | null): string | null => {
     const segments = new URL(canonicalUrl).pathname.split('/').filter(Boolean);
     const first = segments[0];
     if (!first) return null;
-    /* 這些是 Facebook 自己的功能路徑，不是誰的 handle。 */
-    const reserved = ['reel', 'reels', 'watch', 'video', 'share', 'photo', 'photos', 'story.php'];
+    /* Facebook 自己的功能路徑，不是誰的 handle。`login` / `checkpoint` 也列進來：
+       被登入牆導走時 canonical 會變成 `.../login`，不擋的話作者名會變成 `login`。 */
+    const reserved = [
+      'reel',
+      'reels',
+      'watch',
+      'video',
+      'videos',
+      'share',
+      'photo',
+      'photos',
+      'story.php',
+      'login',
+      'checkpoint',
+      'unsupportedbrowser'
+    ];
     if (reserved.includes(first.toLowerCase())) return null;
     return first;
   } catch {

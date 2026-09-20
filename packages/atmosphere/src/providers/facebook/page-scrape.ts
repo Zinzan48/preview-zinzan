@@ -33,6 +33,20 @@ const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 const MAX_REDIRECTS = 5;
 
 /**
+ * Facebook 要求登入時導向的路徑。
+ *
+ * 2026-09-20 從 Cloudflare 邊緣實測：粉專／個人首頁（`/<handle>/`）與 `fb.watch/<code>`
+ * 一律被導到 `/login/?next=…`，而同一組網址從家用 IP 完全正常 —— 跟 Threads 的
+ * logged-out GraphQL 同一類，擋的是出口 IP 的信譽。
+ *
+ * **不能跟進去。** `www.facebook.com` 在允許清單內，所以不特別判斷的話我們會去解析
+ * 登入頁。那一頁目前沒有任何 `og:*`（所以現在只是退回原站），但它**有 `canonical`**
+ * （`https://zh-tw.facebook.com/login`）—— 哪天它多一個 `og:image`，我們就會吐出一張
+ * 標題是 `login (@login)`、圖是 Facebook 商標的假卡片，而且完全不會報錯。
+ */
+const LOGIN_WALL_PATH = /^\/(login|checkpoint|recover|r\.php|login\.php)\b/i;
+
+/**
  * 跟隨轉址，但只跟到 Facebook 自己的 host。
  *
  * **不能用 `fetchSameOriginHttps`** —— `fb.watch/<code>` 是**跨來源**轉到
@@ -59,6 +73,12 @@ async function fetchFollowingFacebookRedirects(url: string, init: RequestInit): 
         from: requestUrl,
         to: next.href
       });
+      break;
+    }
+    if (LOGIN_WALL_PATH.test(next.pathname)) {
+      /* 這個名字要叫得出來 —— 「被要求登入」與「頁面結構變了」的處置完全不同，
+         前者無解（出口 IP 信譽），後者要改解析。 */
+      console.error('[facebook] login wall', { from: requestUrl, to: next.href });
       break;
     }
     requestUrl = next.href;

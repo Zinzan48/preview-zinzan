@@ -223,3 +223,37 @@ describe('fetchFacebookPageMeta redirects', () => {
     expect(meta.status).toBe(302);
   });
 });
+
+describe('fetchFacebookPageMeta login wall', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('does not follow Facebook into its own login page', async () => {
+    /* 2026-09-20 從 Cloudflare 邊緣實測：粉專首頁與 fb.watch 一律被導到 /login/?next=…，
+       同一組網址從家用 IP 完全正常 —— 擋的是出口 IP 的信譽。
+       www.facebook.com 在允許清單內，所以不特別判斷就會去解析登入頁：那一頁現在沒有
+       og:*，但**有 canonical**，哪天多一個 og:image 就會吐出 `login (@login)` 的假卡片。 */
+    const seen: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        seen.push(String(input));
+        return new Response(null, {
+          status: 302,
+          headers: {
+            Location:
+              'https://www.facebook.com/login/?next=https%3A%2F%2Fwww.facebook.com%2Ffacebook%2F'
+          }
+        });
+      })
+    );
+
+    const meta = await fetchFacebookPageMeta('https://www.facebook.com/facebook/');
+
+    /* 只打了原本那一次，沒有跟進登入頁。 */
+    expect(seen).toEqual(['https://www.facebook.com/facebook/']);
+    expect(meta.ok).toBe(false);
+    expect(meta.canonicalUrl).toBeNull();
+  });
+});
