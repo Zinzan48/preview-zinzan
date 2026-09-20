@@ -44,8 +44,11 @@ export const decodeHtmlEntities = (input: string): string =>
 export const authorNameFromPageTitle = (title: string | null): string | null => {
   if (!title) return null;
   const withoutSite = title.replace(/\s*\|\s*Facebook\s*$/i, '').trim();
+  /* 前面要吃 `^` 而不只是 `\s+`：整個標題就是後綴（作者名為空）時也要剝乾淨，
+     否則會回傳 `on Reels` 這種半截字串，呼叫端就不會再去找別的來源了。
+     `Facebook Watch` 要排在 `Facebook` 前面才不會先配到短的那個。 */
   const withoutSurface = withoutSite
-    .replace(/\s+on\s+(Reels|Facebook|Facebook Watch)\s*$/i, '')
+    .replace(/(^|\s+)on\s+(Facebook Watch|Reels|Facebook)\s*$/i, '')
     .trim();
   return withoutSurface || null;
 };

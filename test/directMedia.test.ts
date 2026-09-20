@@ -36,6 +36,20 @@ describe('buildShortDirectMediaUrl', () => {
     expect(url).toBe('https://preview.zinzan.info/www.instagram.com/reel/DdIxVQ3SDWA.mp4');
   });
 
+  it('does the same for Facebook', () => {
+    /* Facebook 的 CDN 網址與 Instagram / Threads 同形狀：702 字元、13 個簽章參數。
+       不加進白名單就會落回 /2/go 那條路，og:video 破 1150 字元，重演同一個坑。 */
+    const url = buildShortDirectMediaUrl(
+      DataProvider.Facebook,
+      'https://www.facebook.com/reel/4484820285134652/',
+      'https://preview.zinzan.info/www.facebook.com/reel/4484820285134652',
+      true
+    );
+
+    expect(url).toBe('https://preview.zinzan.info/www.facebook.com/reel/4484820285134652.mp4');
+    expect(url!.length).toBeLessThan(200);
+  });
+
   it('leaves other providers alone', () => {
     /* X 的影片網址約 130 字元、沒有簽章，本來就播得動 —— 不需要多一次往返。
        Bluesky 與 TikTok 各自有既有的處理路徑。 */
