@@ -176,29 +176,56 @@ token，所以會拿到 200 + OG meta。**UA 不可為空**（空 UA 會被判�
 
 ### 5.1 Facebook：已實測的連結形狀與來源網域
 
-`ShortUrlApi` 要改寫哪些 Facebook 連結，以這張表為準。全部是 2026-09-20 在本機
-（`wrangler dev --local`，家用 IP）用 `TelegramBot` UA 實際跑過的結果。
+`ShortUrlApi` 要改寫哪些 Facebook 連結，以這張表為準。2026-09-20 實測，
+兩欄都要看 —— **本機過不代表線上過**，這裡兩者確實不一樣。
 
-| 形狀 | 樣本 | 結果 |
-| --- | --- | --- |
-| `/reel/<id>` | `www.facebook.com/reel/4484820285134652` | ✅ 播放器 + 縮圖 + `算命的說我很愛吃 (@MASTER.FOOD.DIARY)` |
-| `/share/r/<code>`（影片分享） | `www.facebook.com/share/r/1EGDPCQQe2/` | ✅ 同上，解析回同一則 reel |
-| `/share/<code>`（一般貼文分享） | `www.facebook.com/share/19h74gRbKu/` | ✅ 縮圖卡 + `野狼祭 Beastoria (@beastoriatw)`（該貼文無影片） |
-| `fb.watch/<code>` | `fb.watch/lqvlrYbAdh/` | ✅ 播放器 + `阿翰po影片 (@hanhanpovideo)` |
-| 粉專首頁 | `www.facebook.com/facebook` | ✅ 縮圖卡 + `Facebook (@facebook)` |
-| `/photo?fbid=<id>` | `www.facebook.com/photo?fbid=986636164121078` | ❌ **Facebook 對這個形狀不給任何 `og:*`** → 302 回原站 |
+- **本機**：`wrangler dev --local`（家用 IP）
+- **線上**：`wrangler dev --remote`（程式跑在 Cloudflare 邊緣，colo SJC）
 
-`/photo?fbid=` 不是我們解析失敗：`/photo/`、`/photo.php`、`m.facebook.com` 三種寫法
-實測都是 200 但 `og:*` 出現 **0 次**（同一支測法對 reel 是 7 次）。同一張圖用**貼文**
-永久連結（`/<page>/posts/<id>`）就正常，所以**探測與改寫規則都不要用 `/photo` 樣本**。
+| 形狀                            | 樣本                                                    | 本機           | 線上                |
+| ------------------------------- | ------------------------------------------------------- | -------------- | ------------------- |
+| `/reel/<id>`                    | `www.facebook.com/reel/4484820285134652`                | ✅             | ✅ 穩定             |
+| `/<page>/videos/<id>`           | `www.facebook.com/hanhanpovideo/videos/662317629075955` | ✅             | ✅ 穩定             |
+| `/share/r/<code>`（影片分享）   | `www.facebook.com/share/r/1EGDPCQQe2/`                  | ✅             | ✅ 但會被限流，見下 |
+| `/share/<code>`（一般貼文分享） | `www.facebook.com/share/19h74gRbKu/`                    | ✅             | ✅ 但會被限流，見下 |
+| 粉專首頁 `/<handle>/`           | `www.facebook.com/facebook`                             | ✅             | ❌ **一律登入牆**   |
+| `fb.watch/<code>`               | `fb.watch/lqvlrYbAdh/`                                  | ✅             | ❌ **一律登入牆**   |
+| `/photo?fbid=<id>`              | `www.facebook.com/photo?fbid=986636164121078`           | ❌ 沒有 `og:*` | ❌ 登入牆           |
+
+可用的形狀是 `og:title = <作者名> (@<handle>)` + `og:image`，影片另有 `og:video`
+（70–92 字元的 direct-media 短網址）。失敗的形狀一律 **302 回原站**，不會吐錯誤卡。
+
+#### 線上與本機不一樣的三件事（都是實測）
+
+1. **粉專首頁與 `fb.watch` 從 Cloudflare 出口一律被導到 `/login/?next=…`。**
+   同一批網址同一時間從家用 IP 全部正常（粉專首頁 200、fb.watch 302 到影片），
+   所以擋的是**出口 IP 的信譽**，跟 Threads 的 logged-out GraphQL 同一類。
+   `fb.watch` 另外試過七種 UA（`facebookexternalhit` / Googlebot / bingbot /
+   Twitterbot / Discordbot / TelegramBot / 不帶 UA）—— **全部被擋，沒有 UA 可換**。
+2. **連續密集請求會被暫時限流。** 分享連結一開始 5/5，被我連打幾十次之後變 0/3
+   登入牆，**閒置 10 分鐘後回到 2/2**。reel 與影片永久連結全程沒受影響。
+   含意：**健康探測不要打太密**，而且看到它偶爾轉紅時先確認不是自己打出來的。
+3. **`/photo?fbid=` 兩邊都拿不到**，但原因不同：家用 IP 是 200 卻 `og:*` 出現 0 次
+   （`/photo/`、`/photo.php`、`m.facebook.com` 三種寫法都一樣，同一支測法對 reel 是 7 次），
+   線上則是登入牆。同一張圖用**貼文**永久連結（`/<page>/posts/<id>`）就正常。
+
+> 這些數字來自 `wrangler dev --remote`，它固定落在 colo SJC。正式部署的 colo 取決於
+> 爬蟲從哪裡來，所以是代表性的參考值而不是保證值。
+
+#### 給 `TBDOMAINREWRITE` 的建議
+
+- **可以改寫**：`/reel/`、`/<page>/videos/`、`/<page>/posts/`、`/share/`、`/share/r/`
+- **不要改寫**：粉專／個人首頁、`fb.watch`、`/photo`
+  —— 線上一律拿不到，改寫只是讓使用者多一跳再回原站
+- 探測樣本用 **reel**（線上最穩的一種），期望字串用作者字串
 
 來源網域白名單在 `src/helpers/pathRouting.ts`：
 
-| 來源網域 | 處理方式 | 是否實測 |
-| --- | --- | --- |
-| `www.facebook.com`、`facebook.com` | 直接抓 | ✅ |
-| `fb.watch` | **照原 host 抓**（code 是獨立命名空間，接到 www 上解析不出來），再由頁面的 `og:url` 換回正規網址 | ✅ |
-| `m.facebook.com`、`web.facebook.com`、`fb.com`、`www.fb.com` | 正規化成 `www.facebook.com`（同一個 id 命名空間） | ⚠ 未實測 |
+| 來源網域                                                     | 處理方式                                                                                                                                                                             | 是否實測         |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------- |
+| `www.facebook.com`、`facebook.com`                           | 直接抓                                                                                                                                                                               | ✅               |
+| `fb.watch`                                                   | 照原 host 抓（code 是獨立命名空間，接到 www 上解析不出來）。**留在白名單是為了讓它乾淨地 302 回原站** —— 拿掉的話會落到 twitter realm 的 fallback，變成導去 `zinzan.info` 首頁，更糟 | ✅（線上不可用） |
+| `m.facebook.com`、`web.facebook.com`、`fb.com`、`www.fb.com` | 正規化成 `www.facebook.com`（同一個 id 命名空間）                                                                                                                                    | ⚠ 未實測         |
 
 ---
 

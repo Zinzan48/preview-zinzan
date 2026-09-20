@@ -3,7 +3,7 @@
 這個 fork 與上游 [`FxEmbed/FxEmbed`](https://github.com/FxEmbed/FxEmbed) 的**全部**差異。
 
 - **Fork 基準**：upstream `main` @ `5b5b6207`（2026-09-13）
-- **範圍**：62 個檔案、+4992 / −112 行
+- **範圍**：60 個檔案、+4952 / −112 行
 - 操作面的說明（設定雷、驗收指令、部署參數）在 [`CLAUDE.md`](./CLAUDE.md)；
   這裡只記錄「改了什麼、為什麼、不改會怎樣」。
 
@@ -25,14 +25,14 @@
 
 同一則 reel、家用 IP：
 
-| UA | HTTP | 回應大小 | 耗時 |
-| --- | --- | --- | --- |
-| `facebookexternalhit/1.1` | 200 | 451 KB | 1.54s |
-| `TelegramBot` | 200 | 442 KB | 1.53s |
-| `Googlebot/2.1` | 200 | 878 KB | 1.71s |
-| `bingbot/2.0` | 200 | 894 KB | 3.07s |
-| Chrome 131（桌面瀏覽器） | **400** | — | — |
-| 不帶 UA | 200 | 50 KB（**沒有 og:image**） | — |
+| UA                        | HTTP    | 回應大小                   | 耗時  |
+| ------------------------- | ------- | -------------------------- | ----- |
+| `facebookexternalhit/1.1` | 200     | 451 KB                     | 1.54s |
+| `TelegramBot`             | 200     | 442 KB                     | 1.53s |
+| `Googlebot/2.1`           | 200     | 878 KB                     | 1.71s |
+| `bingbot/2.0`             | 200     | 894 KB                     | 3.07s |
+| Chrome 131（桌面瀏覽器）  | **400** | —                          | —     |
+| 不帶 UA                   | 200     | 50 KB（**沒有 og:image**） | —     |
 
 Threads 選 bingbot 是因為在那邊它最快；Facebook 剛好相反，它最慢也最肥。
 而且 Threads 的瀏覽器 UA 只是拿到空殼頁，Facebook 是**直接回 400** ——
@@ -47,10 +47,10 @@ Threads 的教訓是 logged-out GraphQL 從 Cloudflare 出口只有 20–25% 成
 所以寫任何 provider 之前，先用 `wrangler dev --remote`（程式碼實際跑在 Cloudflare
 基礎設施上）對兩個端點各打 20 次：
 
-| 端點 | 成功率 | 耗時中位數 | 最大 | 平均大小 |
-| --- | --- | --- | --- | --- |
-| 貼文頁 | **20/20** | 929ms | 2423ms | 863 KB |
-| `plugins/video.php` | **20/20** | 154ms | 234ms | 191 KB |
+| 端點                | 成功率    | 耗時中位數 | 最大   | 平均大小 |
+| ------------------- | --------- | ---------- | ------ | -------- |
+| 貼文頁              | **20/20** | 929ms      | 2423ms | 863 KB   |
+| `plugins/video.php` | **20/20** | 154ms      | 234ms  | 191 KB   |
 
 colo 是 SJC，沒有出現任何登入牆。
 
@@ -66,7 +66,11 @@ colo 是 SJC，沒有出現任何登入牆。
 oEmbed alternate link 拿：
 
 ```html
-<link rel="alternate" href="https://graph.facebook.com/v26.0/oembed_video?url=…%2FMASTER.FOOD.DIARY%2Fvideos%2F4484820285134652%2F" title="算命的說我很愛吃 on Reels" />
+<link
+  rel="alternate"
+  href="https://graph.facebook.com/v26.0/oembed_video?url=…%2FMASTER.FOOD.DIARY%2Fvideos%2F4484820285134652%2F"
+  title="算命的說我很愛吃 on Reels"
+/>
 ```
 
 它落在文件 2% 處，一次就同時給了**永久連結、作者 handle、作者顯示名稱**。
@@ -122,6 +126,9 @@ embed realm，而 `APIStatus.provider` 本來就是通用的 `DataProvider`。Fa
 這個 provider 一個 cookie 都不帶，所以改成跟隨轉址但**只跟到 Facebook 自己的 host**
 （比直接用 `redirect: 'follow'` 窄）。
 
+> ⚠ 這個修正讓 `fb.watch` 在**本機**可用，但線上仍然不行 —— Meta 對 Cloudflare 出口
+> 一律把 `fb.watch` 導到登入頁。詳見下面的「線上驗收」。
+
 **② oEmbed 的 `title` 屬性不是作者名。** 第一個樣本看起來像
 （`算命的說我很愛吃 on Reels`），但有自己標題的影片會把整段內文放進去、作者擺最後：
 `<整段內文> | 阿翰po影片`。整個拿來用會做出一張標題有 239 字元貼文內文的卡片。
@@ -151,16 +158,54 @@ provider 正確地判斷「沒東西可預覽」，但 realm 接著吐了「貼�
   正是那個檔案開頭說「比沒有播放器更糟」的那一類。目前沒有 provider 會產生這種
   canonical，這是保險不是修正。
 
-### 已實測的連結形狀
+### 線上驗收：本機全過，線上有三種形狀過不了
 
-完整表格（含樣本網址與逐項結果）在 [`CLAUDE.md`](./CLAUDE.md) §5.1 ——
-`ShortUrlApi` 要設定改寫規則時看那裡。摘要：`/reel/<id>`、`/share/r/<code>`、
-`/share/<code>`、`fb.watch/<code>`、粉專首頁都可用；`/photo?fbid=<id>` 拿不到資料，
-退回原站。
+把同一份 bundle 用 `wrangler dev --remote` 跑在 Cloudflare 邊緣（colo SJC）重測，
+結果**與本機不同**。完整表格在 [`CLAUDE.md`](./CLAUDE.md) §5.1，這裡記為什麼。
+
+| 形狀                                | 本機 | 線上              |
+| ----------------------------------- | ---- | ----------------- |
+| `/reel/<id>`、`/<page>/videos/<id>` | ✅   | ✅ 穩定           |
+| `/share/<code>`、`/share/r/<code>`  | ✅   | ✅ 但會被暫時限流 |
+| 粉專首頁 `/<handle>/`               | ✅   | ❌ 一律登入牆     |
+| `fb.watch/<code>`                   | ✅   | ❌ 一律登入牆     |
+
+**擋的是出口 IP 的信譽，不是請求本身。** 同一批網址在同一時間從家用 IP 全部正常
+（粉專首頁 200、`fb.watch` 302 到影片），從 Cloudflare 出口則被導到
+`/login/?next=…`。這與 Threads 的 logged-out GraphQL 是同一類問題，
+**沒有辦法從我們這側解決**。
+
+`fb.watch` 另外把七種 UA 都從邊緣試過 —— `facebookexternalhit`、Googlebot、bingbot、
+Twitterbot、Discordbot、TelegramBot、不帶 UA。**全部被擋。** 前面那條「UA 選擇要每個
+平台自己量」在這裡救不了，因為沒有 UA 可換。
+
+**限流是會恢復的，這點差別很重要。** 分享連結一開始 5/5，被連打幾十次之後變成
+0/3 登入牆，**閒置 10 分鐘後回到 2/2**；同一段時間 reel 完全沒受影響。也就是說
+「分享連結線上不能用」是錯的結論 —— 正確的是「密集請求會被暫時擋」。
+含意：健康探測不要打太密，而且看到偶發轉紅時要先排除是自己打出來的。
+
+> 數字來自 `wrangler dev --remote`，它固定落在 colo SJC。正式部署的 colo 取決於
+> 爬蟲從哪裡來，所以是代表性參考值而不是保證值。
+
+### Fixed — 不要跟著 Facebook 進它自己的登入頁
+
+`www.facebook.com` 在轉址允許清單裡，所以上面那些登入牆原本會被**跟進去解析**。
+那一頁目前沒有任何 `og:*`（所以現在只是乾淨地退回原站），但它**有 `canonical`**
+（`https://zh-tw.facebook.com/login`）—— 哪天它多一個 `og:image`，我們就會吐出一張
+標題 `login (@login)`、圖是 Facebook 商標的卡片，而且完全不會報錯。
+
+所以登入牆現在是一個**有名字的失敗**（log 寫 `[facebook] login wall`），不是一個
+要去解析的頁面。命名有意義：「被要求登入」在我們這側無解，「頁面結構變了」要改解析，
+在這之前兩者的 log 長得一模一樣。順帶把 `login` / `checkpoint` / `videos` /
+`unsupportedbrowser` 加進保留路徑，作者 handle 不可能被解析成這些字。
 
 ### 已知限制
 
-- **`/photo?fbid=<id>` 拿不到任何資料**（見上）。同一張圖用貼文永久連結就正常。
+- **粉專首頁與 `fb.watch` 線上不可用**（見上）。兩者都留在來源網域白名單裡 ——
+  拿掉 `fb.watch` 反而更糟：會落到 twitter realm 的 fallback 而導去 `zinzan.info` 首頁，
+  留著至少是乾淨地 302 回原連結。
+- **`/photo?fbid=<id>` 兩邊都拿不到**，但原因不同：家用 IP 是 200 卻零個 `og:*`，
+  線上是登入牆。同一張圖用貼文永久連結就正常。
 - **`m.facebook.com` / `web.facebook.com` / `fb.com` 未實測。** 程式上正規化成
   `www.facebook.com`（同一個 id 命名空間），但沒有樣本驗過。
 - **私人／受限貼文**未登入拿不到，退回 302 原站。
@@ -186,11 +231,11 @@ Threads realm 的 direct-media 路徑**本來就已經可用**（`routes/post.ts
 
 實測對照：
 
-| 來源 | og:video 長度 | Telegram |
-| --- | --- | --- |
-| X | 約 130、無簽章 | 正常播放 |
-| Instagram reel | 1162 → 66 | 修正後正常 |
-| Threads 影片 | 1154 → 73 | 修正後正常 |
+| 來源           | og:video 長度  | Telegram   |
+| -------------- | -------------- | ---------- |
+| X              | 約 130、無簽章 | 正常播放   |
+| Instagram reel | 1162 → 66      | 修正後正常 |
+| Threads 影片   | 1154 → 73      | 修正後正常 |
 
 ### Changed
 
@@ -224,11 +269,11 @@ carousel 的第二支影片會被解析成第一支，放出去是「預覽顯�
 
 三個實測決定的設計：
 
-| 決定 | 依據 |
-| --- | --- |
-| **串流到資料區塊收完就 `cancel()`** | 資料落在文件 50–92% 處。讀完整份 body 線上要 3.7–5.2 秒，中止後 **1.83 秒**（中位數，最大 2.49） |
-| **用 bingbot，不用 Googlebot** | 資料同樣完整但回覆少得多（21 vs 45 edges），線上 1.83s vs 2.57s。只需要焦點貼文，回覆是純成本 |
-| **一定要爬蟲 UA** | 帶瀏覽器 UA 拿到的是空殼頁（270 KB、0 個 `thread_items`），內容全靠前端 JS 補，Worker 裡沒有 JS 可跑 |
+| 決定                                | 依據                                                                                                 |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| **串流到資料區塊收完就 `cancel()`** | 資料落在文件 50–92% 處。讀完整份 body 線上要 3.7–5.2 秒，中止後 **1.83 秒**（中位數，最大 2.49）     |
+| **用 bingbot，不用 Googlebot**      | 資料同樣完整但回覆少得多（21 vs 45 edges），線上 1.83s vs 2.57s。只需要焦點貼文，回覆是純成本        |
+| **一定要爬蟲 UA**                   | 帶瀏覽器 UA 拿到的是空殼頁（270 KB、0 個 `thread_items`），內容全靠前端 JS 補，Worker 裡沒有 JS 可跑 |
 
 掃描維持 O(n)（每個 chunk 只從上次位置往後找）—— 緩衝區會長到 700 KB 以上，
 每個 chunk 重掃一次就會吃掉免費方案 10 ms 的 CPU 額度。實際的 `JSON.parse` 只花 **0–1 ms**。
@@ -297,9 +342,10 @@ Threads 的 logged-out 查詢實測只有 20–25% 會通（見上一節），�
 儘管同一則貼文的 logged-out 查詢完全正常。
 
 > 這個短路連上游自己的 doc comment 都對不上，那段明寫
-> 「*and whenever that call fails — it falls back to the logged-out Relay query*」。
+> 「_and whenever that call fails — it falls back to the logged-out Relay query_」。
 
 改法兩層：
+
 - `threads/account-proxy.ts` 認出登入頁，還原成 `401` 並輪替帳號，
   不讓它偽裝成任何內容層的狀態碼。
 - `threads/post.ts` 移除 404 短路，私有 API 的失敗一律往下走 logged-out 路徑。
@@ -318,16 +364,20 @@ Threads 的 logged-out 查詢實測只有 20–25% 會通（見上一節），�
 部署後同一則貼文跑 9 次（三種前綴各 3 次）**全部失敗**，但 log 從「貼文不存在」
 變成兩條互相獨立的真實原因，各 9/9：
 
-| 路徑 | log | 意義 |
-| --- | --- | --- |
-| 私有 API（憑證） | `[threads] private API redirected to login (session invalid)` | IG session 已過期 |
-| logged-out GraphQL | `[threads] graphql non-ok` status **401** | 見下 |
+| 路徑               | log                                                           | 意義              |
+| ------------------ | ------------------------------------------------------------- | ----------------- |
+| 私有 API（憑證）   | `[threads] private API redirected to login (session invalid)` | IG session 已過期 |
+| logged-out GraphQL | `[threads] graphql non-ok` status **401**                     | 見下              |
 
 logged-out 那條，Meta 回的是：
 
 ```json
-{"message":"Please wait a few minutes before you try again.","require_login":true,
- "igweb_rollout":true,"status":"fail"}
+{
+  "message": "Please wait a few minutes before you try again.",
+  "require_login": true,
+  "igweb_rollout": true,
+  "status": "fail"
+}
 ```
 
 **所以「Meta 限流 Cloudflare 出口 IP」這個推論對了一半**：它不適用於私有 API 那條
