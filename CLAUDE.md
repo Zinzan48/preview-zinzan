@@ -120,7 +120,26 @@ curl -sI -H "Host: preview.zinzan.info" -A "$HUMAN" http://localhost:8787/x.com/
 # 頁面內不可出現 https:/// 、https://undefined 、api.fxtwitter.com
 ```
 
-必跑：`npm run lint:eslint`（exit 0）、`npx vitest run`（62 檔 / 395 測試全綠）。
+必跑：`npm run lint:eslint`（exit 0）、`npx vitest run`（69 檔 / 461 測試全綠）。
+
+### 4.1 本機重測前一定要做的兩件事
+
+改完程式在本機重測時，**沒做這兩件事會拿到上一版的結果，而且看起來完全正常**
+（2026-09-20 實際踩到，一度誤判成「修正沒生效」）：
+
+```bash
+# ① 殺掉殘留的 workerd —— 停掉 wrangler 只會殺外層的 node，
+#    子行程 workerd 會繼續佔著 8787，服務的是舊 bundle
+powershell -c "Get-Process workerd -ErrorAction SilentlyContinue | Stop-Process -Force"
+
+# ② 清掉 Miniflare 持久化的回應快取 —— 它存在磁碟上，重啟 wrangler 不會清
+rm -rf .wrangler/state/v3/cache .wrangler/tmp
+```
+
+`wrangler.toml` 有 `[build] command = "npm run build"`，所以 wrangler 自己會在啟動與
+偵測到 `src` 變動時重跑 build。手動 build 與它同時寫 `dist/worker.js` 會撞在一起，
+產出半截檔案，症狀是 `Error: Handler does not export a fetch() function.`。
+用 `--no-bundle` 跑（與 `npm run deploy` 一致）可以少一層重複打包。
 
 ---
 
@@ -154,6 +173,32 @@ token，所以會拿到 200 + OG meta。**UA 不可為空**（空 UA 會被判�
    在正式網域連續量到穩定成功率之前不要寫進 `TBDOMAINREWRITE` —— 探測會一直紅、
    或時通時斷讓規則震盪。屆時的樣本用貼文、期望字串用作者字串（規則 1、2 照舊），
    並換成一則可控、不會被刪的公開貼文。
+
+### 5.1 Facebook：已實測的連結形狀與來源網域
+
+`ShortUrlApi` 要改寫哪些 Facebook 連結，以這張表為準。全部是 2026-09-20 在本機
+（`wrangler dev --local`，家用 IP）用 `TelegramBot` UA 實際跑過的結果。
+
+| 形狀 | 樣本 | 結果 |
+| --- | --- | --- |
+| `/reel/<id>` | `www.facebook.com/reel/4484820285134652` | ✅ 播放器 + 縮圖 + `算命的說我很愛吃 (@MASTER.FOOD.DIARY)` |
+| `/share/r/<code>`（影片分享） | `www.facebook.com/share/r/1EGDPCQQe2/` | ✅ 同上，解析回同一則 reel |
+| `/share/<code>`（一般貼文分享） | `www.facebook.com/share/19h74gRbKu/` | ✅ 縮圖卡 + `野狼祭 Beastoria (@beastoriatw)`（該貼文無影片） |
+| `fb.watch/<code>` | `fb.watch/lqvlrYbAdh/` | ✅ 播放器 + `阿翰po影片 (@hanhanpovideo)` |
+| 粉專首頁 | `www.facebook.com/facebook` | ✅ 縮圖卡 + `Facebook (@facebook)` |
+| `/photo?fbid=<id>` | `www.facebook.com/photo?fbid=986636164121078` | ❌ **Facebook 對這個形狀不給任何 `og:*`** → 302 回原站 |
+
+`/photo?fbid=` 不是我們解析失敗：`/photo/`、`/photo.php`、`m.facebook.com` 三種寫法
+實測都是 200 但 `og:*` 出現 **0 次**（同一支測法對 reel 是 7 次）。同一張圖用**貼文**
+永久連結（`/<page>/posts/<id>`）就正常，所以**探測與改寫規則都不要用 `/photo` 樣本**。
+
+來源網域白名單在 `src/helpers/pathRouting.ts`：
+
+| 來源網域 | 處理方式 | 是否實測 |
+| --- | --- | --- |
+| `www.facebook.com`、`facebook.com` | 直接抓 | ✅ |
+| `fb.watch` | **照原 host 抓**（code 是獨立命名空間，接到 www 上解析不出來），再由頁面的 `og:url` 換回正規網址 | ✅ |
+| `m.facebook.com`、`web.facebook.com`、`fb.com`、`www.fb.com` | 正規化成 `www.facebook.com`（同一個 id 命名空間） | ⚠ 未實測 |
 
 ---
 

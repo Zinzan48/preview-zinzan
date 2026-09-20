@@ -3,7 +3,7 @@
 這個 fork 與上游 [`FxEmbed/FxEmbed`](https://github.com/FxEmbed/FxEmbed) 的**全部**差異。
 
 - **Fork 基準**：upstream `main` @ `5b5b6207`（2026-09-13）
-- **範圍**：60 個檔案、+4280 / −112 行
+- **範圍**：62 個檔案、+4992 / −112 行
 - 操作面的說明（設定雷、驗收指令、部署參數）在 [`CLAUDE.md`](./CLAUDE.md)；
   這裡只記錄「改了什麼、為什麼、不改會怎樣」。
 
@@ -110,14 +110,62 @@ embed realm，而 `APIStatus.provider` 本來就是通用的 `DataProvider`。Fa
 取得的欄位也遠少於 Threads（沒有按讚數、留言數、內文），JSON API 的價值不成比例。
 取不到的欄位一律留 0 / epoch，不硬湊看起來合理的值。
 
+### Fixed — 第二輪範本揭穿的三個錯誤假設
+
+第一輪只有 reel 與影片分享連結兩種樣本，補上 `fb.watch`、一般貼文分享、相片永久
+連結之後，三個假設各自被打破，而且**三個都是安靜失敗**。
+
+**① `fb.watch` 從一開始就不可能會動。** 它的短連結是**跨來源**轉到
+`www.facebook.com/watch/?v=<id>`，而頁面抓取原本用 `fetchSameOriginHttps` ——
+那支依設計只跟同源，會停在 302。結果是每一個 fb.watch 連結都回「貼文不存在」，
+而且沒有任何線索指向轉址。那個同源限制的用意是不要把 session cookie 帶到別的 host，
+這個 provider 一個 cookie 都不帶，所以改成跟隨轉址但**只跟到 Facebook 自己的 host**
+（比直接用 `redirect: 'follow'` 窄）。
+
+**② oEmbed 的 `title` 屬性不是作者名。** 第一個樣本看起來像
+（`算命的說我很愛吃 on Reels`），但有自己標題的影片會把整段內文放進去、作者擺最後：
+`<整段內文> | 阿翰po影片`。整個拿來用會做出一張標題有 239 字元貼文內文的卡片。
+
+Facebook 一律把作者放在**最後一段 `|` 之後**，oEmbed title 與 og:title 都一樣，
+所以兩者現在走同一套擷取 —— 內文自己含 `|` 也不會解錯。一般貼文的 og:title
+（`野狼祭 Beastoria`）本身就是作者名，而它的 `<title>` 是「作者 - 整篇內文」，
+所以 `<title>` 已經完全不再是作者名的來源。
+
+**③ 有些形狀根本沒有 Open Graph。** `/photo?fbid=<id>` 回 200 但 `og:*` 出現 0 次
+（`/photo/`、`/photo.php`、`m.facebook.com` 三種寫法都一樣，同一支測法對 reel 是 7 次）。
+provider 正確地判斷「沒東西可預覽」，但 realm 接著吐了「貼文不存在」的錯誤卡 ——
+**那比不跑這個服務更糟**：它主動宣稱一件不成立的事，而原本使用者只會看到一個純連結。
+現在爬蟲也一起退回原站。
+
+這順帶讓健康探測更明確：服務壞掉時探測看到的是跨 host 轉址而判失敗，
+而不是收到一個 200、含 branding `og:title` 的假成功頁。
+
+**另外兩個順手補的保險：**
+
+- canonical 可能把整個標題塞進路徑 —— fb.watch 那則是 **211 字元**，
+  direct-media 短網址會變 234。不含 slug 的 `/<handle>/videos/<id>/` 實測同樣回 200、
+  同樣帶 oEmbed，所以影片改用兩者中較短的那個（**85 字元**）。234 離 Telegram 的
+  失效點（1150）還很遠，但這條路沒有任何訊號可以偵測，能短就短。
+- `buildShortDirectMediaUrl` 現在拒絕帶查詢字串的來源網址。它只保留 pathname，
+  `/watch/?v=<id>` 這種 canonical 會安靜地解析成 Watch 首頁 —— 顯示錯的影片，
+  正是那個檔案開頭說「比沒有播放器更糟」的那一類。目前沒有 provider 會產生這種
+  canonical，這是保險不是修正。
+
+### 已實測的連結形狀
+
+完整表格（含樣本網址與逐項結果）在 [`CLAUDE.md`](./CLAUDE.md) §5.1 ——
+`ShortUrlApi` 要設定改寫規則時看那裡。摘要：`/reel/<id>`、`/share/r/<code>`、
+`/share/<code>`、`fb.watch/<code>`、粉專首頁都可用；`/photo?fbid=<id>` 拿不到資料，
+退回原站。
+
 ### 已知限制
 
-- **相片貼文與純文字貼文沒有實測樣本。** 通用解析路徑會對它們產生
-  `og:title` + `og:image` 的卡片（粉專首頁已實測可用），但沒有拿真實的相片貼文
-  驗過。失敗時會退回 302 原站，不會吐壞卡片。
-- **`fb.watch` 短連結沒有實測樣本。** 程式上照原 host 抓（它的 code 是獨立命名
-  空間，接到 `www` 上解析不出來），機制與 `/share/r/` 相同，但沒有驗過。
-- **私人／受限貼文**未登入拿不到，預期退回 302 原站。
+- **`/photo?fbid=<id>` 拿不到任何資料**（見上）。同一張圖用貼文永久連結就正常。
+- **`m.facebook.com` / `web.facebook.com` / `fb.com` 未實測。** 程式上正規化成
+  `www.facebook.com`（同一個 id 命名空間），但沒有樣本驗過。
+- **私人／受限貼文**未登入拿不到，退回 302 原站。
+- **沒有按讚數、留言數、發布時間。** Facebook 的公開 `<head>` 不給，
+  這些欄位一律留 0 / epoch，不硬湊。
 
 ---
 
