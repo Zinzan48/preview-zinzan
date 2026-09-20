@@ -12,11 +12,16 @@ import { DataProvider } from '../enum';
  * | X | 約 130 字元、無簽章 | 正常播放 |
  * | Instagram reel | 1162 | 只有縮圖 |
  * | Threads 影片 | 1154 | 只有縮圖 |
+ * | Facebook reel | 約 1150（直連本身 702 字元、13 個簽章參數） | 只有縮圖 |
  *
  * 其他可能原因都已排除：meta 格式、302 中轉本身、影片編碼（H.264 + faststart）、
  * 檔案大小、網址時效、來源 IP 限制。同一則 reel 在上游 `67instagram.com` 也一樣不播。
  */
-const SHORT_DIRECT_MEDIA_PROVIDERS: DataProvider[] = [DataProvider.Instagram, DataProvider.Threads];
+const SHORT_DIRECT_MEDIA_PROVIDERS: DataProvider[] = [
+  DataProvider.Instagram,
+  DataProvider.Threads,
+  DataProvider.Facebook
+];
 
 /**
  * 組出指向我們自己 direct-media 路徑的短網址（實測 66–73 字元）。
@@ -43,6 +48,13 @@ export const buildShortDirectMediaUrl = (
   try {
     const source = new URL(statusUrl);
     const selfHost = new URL(selfUrl).host;
+    /* 帶查詢字串就不適用：短網址只保留 pathname，`/watch/?v=<id>` 這種形狀的 id
+       會整個被丟掉，客戶端回來抓時解析到的是另一則（或整個 Watch 首頁）。
+       那是「預覽顯示了別支影片」那一類的錯 —— 比沒有播放器更糟。
+       實測目前三個 provider 的 canonical 都是純路徑，這是防止日後變動的保險。 */
+    if (source.search) {
+      return null;
+    }
     const path = source.pathname.replace(/\/+$/, '');
     if (!path) {
       return null;

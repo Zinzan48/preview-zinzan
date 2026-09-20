@@ -24,17 +24,34 @@
   64 個 `video_versions`，而 curl 抓的靜態 HTML 是 0 —— 這個對比直接證明了
   「資料拿得到」，省下往逆向 token 流程鑽的時間。
 
-### Facebook
+### ~~Facebook~~ — 已完成（2026-09-20）
 
-**上游完全沒有**，`packages/atmosphere/src/providers/` 底下沒有 facebook 目錄。
+預覽與影片都可用，見 `CHANGELOG.md`。這裡只留下對下一個平台有參考價值的部分：
 
-要做的事比 Threads 大得多：整個 provider（資料取得、解析、型別）都要自己寫。
-動工前先評估可行性 —— Facebook 的公開貼文對未登入者的限制比 Instagram 更嚴，
-而且 Meta 對這類取用的封鎖很積極（`ddinstagram.com` 與 `fixthreads.net` 的下場
-見 `PREVIEW_SERVICE_BRIEF.md` 第 6 節）。
-
-建議先做一次實測再決定：拿幾則公開的 Facebook 貼文，確認未登入狀態下
-拿不拿得到 og:image / 影片直連。拿不到就不值得投入。
+- **UA 選擇不能跨平台沿用。** Threads 與 Facebook 同屬 Meta、同樣「只有爬蟲
+  拿得到資料」，但最佳 UA 完全相反：Threads 選 bingbot 因為它最快，Facebook 的
+  bingbot 最慢（3.07s vs `facebookexternalhit` 的 1.54s）也最肥。而且 Facebook 對
+  桌面瀏覽器 UA 是**直接回 400**，不是給空殼頁。每個平台都要自己量一次。
+- **不要用 `og:type` 判斷「這則是不是影片」。** Facebook 連粉專首頁的 `og:type`
+  都是 `video.other`。要找一個「只有該型態才會出現」的訊號 —— 這次是
+  `<head>` 裡的 oEmbed alternate link，而且它順帶把作者 handle 與永久連結一起給了。
+- **先量出口 IP 再寫 provider。** `wrangler dev --remote` 會把程式碼跑在 Cloudflare
+  基礎設施上，所以出口 IP 就是正式環境的。兩個端點各 20 次、半小時內就能知道
+  這件事值不值得做 —— 比寫完整個 provider 才發現線上只有 25% 便宜太多。
+- **不要假設「看起來是作者名的欄位」就是作者名。** Facebook 的 oEmbed `title` 屬性
+  在無標題的 reel 上是 `<作者> on Reels`，在有標題的影片上卻是「整段內文 | 作者」。
+  只看一個樣本會歸納出錯的規則，而錯的規則做出來的卡片是「標題有 239 字元內文」——
+  不會報錯。**一個形狀至少要兩個樣本**，而且要挑刻意不一樣的那種。
+- **本機全過不代表線上全過，而且差異不是全有全無。** 同一份 bundle 用
+  `wrangler dev --remote` 跑在 Cloudflare 邊緣重測，Facebook 有三種形狀過不了：
+  粉專首頁與 `fb.watch` 一律被導到登入頁（**七種爬蟲 UA 全試過都一樣**），
+  而分享連結是**被密集請求打到暫時限流、閒置十分鐘後自己恢復**。
+  這兩者長得一樣但結論完全不同，所以**看到線上失敗要先量「會不會恢復」**，
+  不要直接寫成「這個形狀不支援」。對照組也要同時做：同一時間從家用 IP 打一次，
+  才分得出是出口 IP 被擋還是上游真的改了。
+- **只有一條取數路徑時要重試。** Threads 有三條 fallback 所以可以不重試；
+  單一路徑的 provider 一次暫時性網路錯誤就是一張壞卡片，**而 Telegram 會把它
+  快取很久**。注意 `withTimeout` 的 retries 只認 `AbortError`，擋不住網路層錯誤。
 
 ---
 
@@ -57,6 +74,7 @@
 
   也就是說 Threads 的可用性完全押在憑證上。憑證補好後重跑一次 9 次驗收再決定。
   **在那之前 Threads 不能寫進 `TBDOMAINREWRITE`**：探測會一直紅，或時通時斷讓規則震盪。
+
 - **跟上游同步**：`git fetch upstream && git merge upstream/main` 之後，
   務必複查 `CHANGELOG.md` 列的六個上游缺陷修正還在不在。
   其中 guest token 的 `cf` 選項與 `constants.ts` 的 `filter(Boolean)`

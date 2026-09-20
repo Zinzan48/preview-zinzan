@@ -31,6 +31,15 @@ const SOURCE_DOMAIN_REALMS: Record<string, string> = {
   /* Meta 在 2026 年把 Threads 從 threads.net 換到 threads.com，舊連結仍在流通 */
   'threads.net': 'threads',
   'www.threads.net': 'threads',
+  /* Facebook：m./web. 與 fb.com 都是同一個 id 命名空間，realm 會一律正規化成 www。
+     fb.watch 是獨立的短連結命名空間，只在該 host 上解析得出來，所以 realm 會照原 host 抓。 */
+  'facebook.com': 'facebook',
+  'www.facebook.com': 'facebook',
+  'm.facebook.com': 'facebook',
+  'web.facebook.com': 'facebook',
+  'fb.com': 'facebook',
+  'www.fb.com': 'facebook',
+  'fb.watch': 'facebook',
   'tiktok.com': 'tiktok',
   'www.tiktok.com': 'tiktok',
   'vm.tiktok.com': 'tiktok'
@@ -82,3 +91,20 @@ export const matchSourcePrefix = (pathname: string): SourcePrefixMatch | null =>
  */
 export const stripSourcePrefix = (pathname: string): string =>
   matchSourcePrefix(pathname)?.path ?? pathname;
+
+/**
+ * 路徑第一段本身（來源網域，小寫）。沒命中白名單就回 null。
+ *
+ * 多數 realm 用不到這個 —— 它們的上游只有一個 host，直接用 Constants 的 *_ROOT 即可。
+ * Facebook 需要，因為 `fb.watch` 的短連結 code 是獨立命名空間，接到 www 上解析不出來。
+ */
+export const sourceHostFromPath = (pathname: string): string | null => {
+  if (!pathname.startsWith('/')) {
+    return null;
+  }
+  const nextSlash = pathname.indexOf('/', 1);
+  const firstSegment = (
+    nextSlash === -1 ? pathname.slice(1) : pathname.slice(1, nextSlash)
+  ).toLowerCase();
+  return SOURCE_DOMAIN_REALMS[firstSegment] ? firstSegment : null;
+};

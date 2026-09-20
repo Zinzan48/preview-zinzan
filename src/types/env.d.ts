@@ -26,6 +26,7 @@ declare namespace NodeJS {
     PBS_PROXY_DOMAIN_LIST?: string;
     TWITTER_ROOT?: string;
     THREADS_ROOT?: string;
+    FACEBOOK_ROOT?: string;
     INSTAGRAM_ROOT?: string;
     /** Instagram private API origin used by the account proxy. */
     INSTAGRAM_API_ROOT?: string;

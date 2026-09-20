@@ -91,6 +91,7 @@ import { getBranding } from './helpers/branding';
 import { tiktok } from './realms/tiktok/router';
 import { instagram } from './realms/instagram/router';
 import { threads } from './realms/threads/router';
+import { facebook } from './realms/facebook/router';
 
 const noCache = 'max-age=0, no-cache, no-store, must-revalidate';
 const embeddingClientRegex =
@@ -280,6 +281,7 @@ app.get('/', c => {
       /tiktok/...      FixTok
       /instagram/...   FxInstagram
       /threads/...     Threads
+      /facebook/...    Facebook
       /api/...         FxTwitter API
       /blueskyapi/...  FxBluesky API
       /atmosphere/...  Atmosphere API (multi-provider)
@@ -296,6 +298,7 @@ app.route(`/bluesky`, bluesky);
 app.route(`/tiktok`, tiktok);
 app.route(`/instagram`, instagram);
 app.route(`/threads`, threads);
+app.route(`/facebook`, facebook);
 
 app.all('/error', async c => {
   c.header('cache-control', noCache);
