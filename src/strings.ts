@@ -222,11 +222,22 @@ This may be caused by API downtime or a new bug. Try again in a little while." p
   ERROR_USER_SUSPENDED: `Sorry, that user is suspended :(`,
   ERROR_UNKNOWN: `Unknown error occurred, sorry about that :(`,
 
-  // zinzan fork：整站拒絕爬蟲，只放指令（見 CHANGELOG 2026-10-08）。
-  // 預覽靠的是 Discord／Telegram 等連結預覽爬蟲，它們不看 robots.txt；
-  // 上游原本就擋了 `/*/status`，預覽照常運作就是證據。
+  // zinzan fork：搜尋與 AI 一律拒絕，連結預覽爬蟲另開群組放行；只放指令（見 CHANGELOG 2026-10-08）。
+  // X（Twitterbot）與 Meta（facebookexternalhit）官方文件都寫明遵守 robots.txt，
+  // 而短網址導轉到這裡不分 UA，不放行的話 FB／X 上的短網址就沒有預覽。
+  // 其餘幾個沒有官方說法，列進去沒有壞處。
   ROBOTS_TXT: `User-agent: *
+Content-Signal: search=no, ai-input=no, ai-train=no
 Disallow: /
+
+User-agent: Twitterbot
+User-agent: facebookexternalhit
+User-agent: LinkedInBot
+User-agent: Slackbot-LinkExpanding
+User-agent: Discordbot
+User-agent: TelegramBot
+User-agent: WhatsApp
+Allow: /
 `,
   ROBOTS_TXT_API: `# Crawlers should not crawl API endpoints
 User-agent: *

@@ -9,17 +9,25 @@
 
 ---
 
-## [2026-10-08] robots.txt 整站拒絕
+## [2026-10-08] robots.txt 拒絕搜尋與 AI，放行連結預覽
 
 ### Changed
 
-**`src/strings.ts` 的 `ROBOTS_TXT`** 改成只有兩行：`User-agent: *`、`Disallow: /`。
+**`src/strings.ts` 的 `ROBOTS_TXT`** 改成只放指令，分兩個群組：
+
+- `User-agent: *`：`Content-Signal: search=no, ai-input=no, ai-train=no`，加上 `Disallow: /`。
+- 連結預覽爬蟲（Twitterbot、facebookexternalhit、LinkedInBot、Slackbot-LinkExpanding、Discordbot、
+  TelegramBot、WhatsApp）：`Allow: /`。
 
 上游的版本是給 fxtwitter.com 這類公開站用的：有一大段 ASCII 圖和宣傳 docs.fxembed.com 的註解，
-放行首頁，也放行 `ChatGPT-User`。preview.zinzan.info 只是短網址導轉的預覽中繼，不需要被任何爬蟲收錄。
+放行首頁，也放行 `ChatGPT-User`。preview.zinzan.info 只是短網址導轉的預覽中繼，不需要被搜尋引擎或 AI 收錄。
 
-預覽不受影響：Discord、Telegram 這類連結預覽爬蟲不看 robots.txt。上游本來就用 `Disallow: /*/status`
-擋掉所有爬蟲，預覽還是照常運作，這就是證據。`ROBOTS_TXT_API` 沒有改，我們的網域用不到 API realm。
+**為什麼預覽爬蟲要另外放行**：短網址導轉到這裡時不分 UA。X 和 Meta 的官方文件都寫明它們的預覽爬蟲
+遵守 robots.txt，整站 Disallow 的話，FB 和 X 上指向 IG、FB、Threads 貼文的短網址就不會有預覽。
+其他幾家沒有官方說法，列進去沒有壞處。Discord 看起來不理 robots.txt：上游的 `Disallow: /*/status`
+從來沒有擋到 Discord 的預覽。
+
+`ROBOTS_TXT_API` 沒有改，我們的網域用不到 API realm。
 
 測試：`test/robots.test.ts`。**merge upstream 時這個字串會衝突，保留我們的版本。**
 
