@@ -222,46 +222,12 @@ This may be caused by API downtime or a new bug. Try again in a little while." p
   ERROR_USER_SUSPENDED: `Sorry, that user is suspended :(`,
   ERROR_UNKNOWN: `Unknown error occurred, sorry about that :(`,
 
-  ROBOTS_TXT: `# /-------------------------------------------\\
-# | _______                                   |
-# | |     |                                   |
-# | |     |  I'm a robot                      |
-# | |_____|                     antiCAPTCHA   |
-# |                           Privacy | Terms |
-# \\-------------------------------------------/
-
-# Do you breathe air? Are you a human? Do you know how to write code?
-# Do you want an easy way to fetch posts but Elon Musk wants to charge you $100 per month?
-# Did you know we have a fetch API you can use for free, no API keys required?
-
-# Check out the docs at https://docs.fxembed.com to learn how to use it
-
-# Good luck, have fun and try not to take over the world!
-
-# Instructions below are for robots only, beep boop
-
-# ==========================================================================
-
-# Yandex crawls far, far heavier than Googlebot and Bingbot combined
-User-agent: YandexBot
+  // zinzan fork：整站拒絕爬蟲，只放指令（見 CHANGELOG 2026-10-08）。
+  // 預覽靠的是 Discord／Telegram 等連結預覽爬蟲，它們不看 robots.txt；
+  // 上游原本就擋了 `/*/status`，預覽照常運作就是證據。
+  ROBOTS_TXT: `User-agent: *
 Disallow: /
-
-# Large language models are friendly
-User-agent: ChatGPT-User
-Disallow:
-
-User-agent: *
-Allow: /$
-Disallow: /*/status
-Disallow: /*/status/
-Disallow: /profile
-Disallow: /profile/
-# Oembeds are not crawler friendly
-Disallow: /owoembed
-Disallow: /owoembed/
-Allow: /watch?v=dQw4w9WgXcQ
-
-# 0100011101101111011011110110010000100000011000100110111101110100`,
+`,
   ROBOTS_TXT_API: `# Crawlers should not crawl API endpoints
 User-agent: *
 Disallow: /`

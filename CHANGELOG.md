@@ -9,6 +9,22 @@
 
 ---
 
+## [2026-10-08] robots.txt 整站拒絕
+
+### Changed
+
+**`src/strings.ts` 的 `ROBOTS_TXT`** 改成只有兩行：`User-agent: *`、`Disallow: /`。
+
+上游的版本是給 fxtwitter.com 這類公開站用的：有一大段 ASCII 圖和宣傳 docs.fxembed.com 的註解，
+放行首頁，也放行 `ChatGPT-User`。preview.zinzan.info 只是短網址導轉的預覽中繼，不需要被任何爬蟲收錄。
+
+預覽不受影響：Discord、Telegram 這類連結預覽爬蟲不看 robots.txt。上游本來就用 `Disallow: /*/status`
+擋掉所有爬蟲，預覽還是照常運作，這就是證據。`ROBOTS_TXT_API` 沒有改，我們的網域用不到 API realm。
+
+測試：`test/robots.test.ts`。**merge upstream 時這個字串會衝突，保留我們的版本。**
+
+---
+
 ## [2026-09-20] Facebook 支援
 
 ### Added
