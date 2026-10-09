@@ -51,9 +51,7 @@ describe('Threads post links reach the post handler (crawler UA)', () => {
     ['/threads.com/@dumpling_neko/post/DZzR3K1GKmB/?xmt=abc', 'DZzR3K1GKmB'],
     [`/threads.com/@dumpling_neko/post/DZzR3K1GKmC/${SLUG}/?hpir=1`, 'DZzR3K1GKmC']
   ])('%s', async (path, shortcode) => {
-    const fetchSpy = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => {
-      return new Response('not found', { status: 404 });
-    });
+    const fetchSpy = vi.fn<typeof fetch>(async () => new Response('not found', { status: 404 }));
     vi.stubGlobal('fetch', fetchSpy);
 
     const res = await request(path, { 'User-Agent': 'facebookexternalhit/1.1' });
