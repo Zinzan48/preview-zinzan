@@ -108,3 +108,24 @@ export const sourceHostFromPath = (pathname: string): string | null => {
   ).toLowerCase();
   return SOURCE_DOMAIN_REALMS[firstSegment] ? firstSegment : null;
 };
+
+/**
+ * 把請求還原成使用者原本要去的網址：`/threads.com/@h/post/X/?q=1` → `https://threads.com/@h/post/X/?q=1`。
+ * 沒有來源網域前綴就回 null。
+ *
+ * 給各 realm 的 catch-all 用：遇到沒見過的網址形狀，最差就是沒有預覽，使用者仍然到得了原本的貼文。
+ *
+ * host 只會是白名單裡的值，所以不會變成 open redirect。刻意用 pathname setter 而不是
+ * `new URL(path, base)` —— 後者遇到 `//evil.com/…` 會把它當成另一個 host。
+ */
+export const originalSourceUrl = (requestUrl: string): string | null => {
+  const url = new URL(requestUrl);
+  const host = sourceHostFromPath(url.pathname);
+  if (!host) {
+    return null;
+  }
+  const target = new URL(`https://${host}`);
+  target.pathname = stripSourcePrefix(url.pathname);
+  target.search = url.search;
+  return target.toString();
+};

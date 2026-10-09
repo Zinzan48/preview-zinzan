@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { trimTrailingSlash } from 'hono/trailing-slash';
-import { getBranding } from '../../helpers/branding';
+import { sourceFallbackRedirect } from '../common/fallback';
 import { versionRoute } from '../common/version';
 import { threadsPostRequest } from './routes/post';
 import { threadsShareRequest } from './routes/share';
@@ -33,4 +33,4 @@ threads.get('/share/:code/*', threadsShareRequest);
 
 threads.get('/version', c => versionRoute(c));
 
-threads.all('*', async c => c.redirect(getBranding(c).redirect, 302));
+threads.all('*', sourceFallbackRedirect);

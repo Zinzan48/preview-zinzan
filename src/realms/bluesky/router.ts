@@ -5,7 +5,7 @@ import { oembed } from './routes/oembed';
 import { versionRoute } from '../common/version';
 import { genericBlueskyRedirect } from './routes/redirects';
 import { activityRequest } from './routes/activity';
-import { getBranding } from '../../helpers/branding';
+import { sourceFallbackRedirect } from '../common/fallback';
 import {
   profileFeedAtomBluesky,
   profileFeedRssBluesky,
@@ -29,4 +29,4 @@ bluesky.get('/profile/:handle/media.atom.xml', profileMediaFeedAtomBluesky);
 bluesky.get('/profile/*', genericBlueskyRedirect);
 bluesky.get('/version', c => versionRoute(c));
 
-bluesky.all('*', async c => c.redirect(getBranding(c).redirect, 302));
+bluesky.all('*', sourceFallbackRedirect);

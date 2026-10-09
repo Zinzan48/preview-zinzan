@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { trimTrailingSlash } from 'hono/trailing-slash';
-import { getBranding } from '../../helpers/branding';
+import { sourceFallbackRedirect } from '../common/fallback';
 import { versionRoute } from '../common/version';
 import { facebookPostRequest } from './routes/post';
 
@@ -15,4 +15,4 @@ facebook.get('/version', c => versionRoute(c));
    真的解析不出媒體時，handler 自己會把人送回原站。 */
 facebook.get('/*', facebookPostRequest);
 
-facebook.all('*', async c => c.redirect(getBranding(c).redirect, 302));
+facebook.all('*', sourceFallbackRedirect);

@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { getBranding } from '../../helpers/branding';
+import { sourceFallbackRedirect } from '../common/fallback';
 import { activityRequest } from './routes/activity';
 import { tiktokVideoRequest } from './routes/video';
 import { oembed } from './routes/oembed';
@@ -51,4 +51,4 @@ tiktok.get('/t/:id', tiktokVideoRequest);
 tiktok.get('/t/:id/', tiktokVideoRequest);
 tiktok.get('/version', c => versionRoute(c));
 
-tiktok.all('*', async c => c.redirect(getBranding(c).redirect, 302));
+tiktok.all('*', sourceFallbackRedirect);
