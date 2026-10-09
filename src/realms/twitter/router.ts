@@ -1,6 +1,7 @@
 import { Context, Hono } from 'hono';
 // import { cache } from "hono/cache";
 import { versionRoute } from '../common/version';
+import { sourceFallbackRedirect } from '../common/fallback';
 import { Strings } from '../../strings';
 import { Constants } from '../../constants';
 import { genericTwitterRedirect, setRedirectRequest } from './routes/redirects';
@@ -124,4 +125,4 @@ twitter.get('/:handle', _profileRequest);
 /* Redirect profile subpages in case someone links them for some reason (https://github.com/FxEmbed/FxEmbed/issues/603) */
 twitter.get('/:handle/:subpage', genericTwitterRedirect);
 
-twitter.all('*', async c => c.redirect(getBranding(c).redirect, 302));
+twitter.all('*', sourceFallbackRedirect);

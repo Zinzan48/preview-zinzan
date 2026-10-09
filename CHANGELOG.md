@@ -3,9 +3,78 @@
 這個 fork 與上游 [`FxEmbed/FxEmbed`](https://github.com/FxEmbed/FxEmbed) 的**全部**差異。
 
 - **Fork 基準**：upstream `main` @ `5b5b6207`（2026-09-13）
-- **範圍**：60 個檔案、+4952 / −112 行
+- **範圍**：69 個檔案、+5344 / −157 行
 - 操作面的說明（設定雷、驗收指令、部署參數）在 [`CLAUDE.md`](./CLAUDE.md)；
   這裡只記錄「改了什麼、為什麼、不改會怎樣」。
+
+---
+
+## [2026-10-09] Threads 連結帶結尾斜線被導到首頁；未知路徑改導回原平台
+
+### Fixed
+
+**Threads 貼文連結的結尾斜線與多餘路徑段**（`src/realms/threads/router.ts`）。
+
+使用者回報兩個 Threads 短網址都落到 `www.zinzan.info`。short 那段沒錯，路徑原封不動交過來了：
+
+- `/threads.com/@dumpling_neko/post/DZzR3K1GKmS/`
+- `/threads.com/@dumpling_neko/post/DZzR3K1GKmS/<中文 slug>/?hpir=1&http_ref=…`
+
+兩個問題疊在一起：
+
+1. `/:handle/post/:id`、`/:handle/post/:id/:language` 都對不到結尾的 `/`。
+2. `trimTrailingSlash()` 預設只在回應是 404 時才去斜線重導（Hono 官方文件明寫），
+   而檔尾的 catch-all 會先回 302。404 從來不會出現，去斜線那一步也就從來沒發生過。
+
+X 沒事，是因為 twitter realm 一直有 `/:handle/:endpoint/:id/*`。Threads 照著補：
+`/:handle/post/:id`、`/post/:id`、`/t/:id`、`/share/:code` 各配一條 `/*`。
+`:language` 那條拿掉了 —— handler 從來沒讀它，中文 slug 被綁進去只是剛好沒壞。
+沒有用 `trimTrailingSlash({ alwaysRedirect: true })`，因為它要多跳一次 301。
+
+### Changed
+
+**各 realm 的 catch-all 改成導回原平台**（`src/realms/common/fallback.ts`、
+`src/helpers/pathRouting.ts` 的 `originalSourceUrl`）。
+
+上游的 catch-all 一律導到 branding 首頁，對 fxtwitter.com 這種只換網域的用法沒差。
+但我們的路徑帶著使用者真正要去的網址，導到首頁等於把目的地丟掉。上面那個 bug 之所以會變成
+「被送去官網」，就是這一步。
+
+現在路徑第一段命中來源網域白名單時，導到 `https://<那個 host><剝掉前綴的路徑><query>`；
+沒有前綴（直接打 `/`）才導到 branding。以後再遇到沒見過的網址形狀，最差就是沒有預覽，
+使用者還是到得了原本的貼文。
+
+- host 只會是白名單裡的值，不會變成 open redirect。`fb.watch` 照原 host，它的 code 只在那裡解析得出來。
+- 路徑用 pathname setter 設，不用 `new URL(path, base)`：後者遇到 `//evil.com/…` 會把它當成新的 host
+  （MDN `URL()` 頁的範例就是這個）。
+- 爬蟲也一樣導回原平台。以前它拿到的是一張「zinzan preview」的空卡。ShortUrlApi 的健康探測用
+  貼文樣本加作者字串，不受影響。
+- Facebook realm 的 GET 全部交給貼文 handler，其他 method 在 `src/caches.ts` 就先回 405，
+  所以它的 catch-all 實際上走不到。一起改只是為了一致。
+
+**merge upstream 時**：`twitter`、`instagram`、`bluesky`、`tiktok` 四個 router 各改了 import 一行
+與檔尾 `all('*')` 一行，衝突時保留我們的版本。萬一被蓋回 `getBranding(c).redirect`，不會有任何
+錯誤訊息，只是沒對到路由的連結又會落到首頁 —— `test/sourceFallback.test.ts` 會紅。
+
+測試：`test/threads.realm.test.ts`（回報的每個形狀，真人與爬蟲 UA 各一組）、
+`test/sourceFallback.test.ts`。兩支都先對舊路由跑過，確認抓得到（各紅 9/11、7/18）。
+
+本機 `wrangler dev --local` 實測（`Host: preview.zinzan.info`）：
+
+| 路徑                                                  | 真人 UA                        | `facebookexternalhit/1.1`   |
+| ----------------------------------------------------- | ------------------------------ | --------------------------- |
+| `/threads.com/@dumpling_neko/post/DZzR3K1GKmS/`       | 302 → Threads 貼文             | 200 `neko (@dumpling_neko)` |
+| 同上加 `?xmt=abc`                                     | 302 → Threads 貼文             | 200 `neko (@dumpling_neko)` |
+| 同上加中文 slug 與 `/?hpir=1&http_ref=x`              | 302 → Threads 貼文             | 200 `neko (@dumpling_neko)` |
+| `/x.com/jack/status/20/`                              | 302 → `x.com/jack/status/20`   | 200 `jack (@jack)`          |
+| `/threads.com/@dumpling_neko/replies`（沒有對應路由） | 302 → `threads.com/@…/replies` | 同左                        |
+| `/`                                                   | 302 → `www.zinzan.info`        | 同左                        |
+
+### 沒有修的
+
+`/x.com/zinzan/status/1` 會被導到 `https://x.com/zinzan/status/undefined`。根因是上游
+`src/realms/twitter/routes/status.ts` 真人分支的 `id?.match(/\d{2,20}/)?.[0]`：ID 少於兩位數
+或不含數字時取不到值。真實推文 ID 不會觸發，修了只是多一個 merge 衝突點。
 
 ---
 

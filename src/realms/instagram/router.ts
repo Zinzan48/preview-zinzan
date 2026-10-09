@@ -1,6 +1,6 @@
 import { Context, Hono } from 'hono';
 import { trimTrailingSlash } from 'hono/trailing-slash';
-import { getBranding } from '../../helpers/branding';
+import { sourceFallbackRedirect } from '../common/fallback';
 import { activityRequest } from './routes/activity';
 import { instagramPostRequest } from './routes/post';
 import { oembed } from './routes/oembed';
@@ -49,4 +49,4 @@ instagram.get('/reel/:id/', instagramPostRequest);
 
 instagram.get('/version', c => versionRoute(c));
 
-instagram.all('*', async c => c.redirect(getBranding(c).redirect, 302));
+instagram.all('*', sourceFallbackRedirect);

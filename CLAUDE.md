@@ -35,7 +35,8 @@
 
 我們專屬的功能：單一網域 + 路徑第一段即來源網域（`src/helpers/pathRouting.ts`、
 `getPath`、兩個 realm 的 redirect handler），以及把 `/2/go`、`/2/hit` 的中轉 host
-從 `API_HOST_LIST[0]` 拆成獨立的 `GO_REDIRECT_HOST`。
+從 `API_HOST_LIST[0]` 拆成獨立的 `GO_REDIRECT_HOST`。各 realm 檔尾的 catch-all 一律走
+`src/realms/common/fallback.ts`：有來源前綴就導回原平台，不是上游的 branding 首頁。
 
 ### merge upstream 後必須複查的六個修正
 
@@ -120,7 +121,7 @@ curl -sI -H "Host: preview.zinzan.info" -A "$HUMAN" http://localhost:8787/x.com/
 # 頁面內不可出現 https:/// 、https://undefined 、api.fxtwitter.com
 ```
 
-必跑：`npm run lint:eslint`（exit 0）、`npx vitest run`（69 檔 / 461 測試全綠）。
+必跑：`npm run lint:eslint`（exit 0）、`npx vitest run`（72 檔 / 494 測試全綠）。
 
 ### 4.1 本機重測前一定要做的兩件事
 
